@@ -41,6 +41,7 @@ import {
 } from "recharts";
 
 type Category = { id: string; name: string; color: string; icon: string };
+type Card_ = { id: string; name: string; bank: string | null; last4: string | null; color: string };
 type Expense = {
   id: string;
   amount: number;
@@ -49,6 +50,7 @@ type Expense = {
   spent_at: string;
   is_credit_card: boolean;
   category_id: string | null;
+  card_id: string | null;
   receipt_url: string | null;
 };
 type Budget = { id: string; budget_type: "monthly" | "credit_card"; limit_amount: number };
