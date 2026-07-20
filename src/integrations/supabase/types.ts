@@ -14,7 +14,131 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      budgets: {
+        Row: {
+          budget_type: string
+          id: string
+          limit_amount: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          budget_type: string
+          id?: string
+          limit_amount: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          budget_type?: string
+          id?: string
+          limit_amount?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      categories: {
+        Row: {
+          color: string
+          created_at: string
+          icon: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      expenses: {
+        Row: {
+          amount: number
+          category_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_credit_card: boolean
+          merchant: string | null
+          receipt_url: string | null
+          spent_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_credit_card?: boolean
+          merchant?: string | null
+          receipt_url?: string | null
+          spent_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_credit_card?: boolean
+          merchant?: string | null
+          receipt_url?: string | null
+          spent_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_settings: {
+        Row: {
+          alert_threshold_pct: number
+          last_card_alert_at: string | null
+          last_monthly_alert_at: string | null
+          updated_at: string
+          user_id: string
+          zapier_webhook_url: string | null
+        }
+        Insert: {
+          alert_threshold_pct?: number
+          last_card_alert_at?: string | null
+          last_monthly_alert_at?: string | null
+          updated_at?: string
+          user_id: string
+          zapier_webhook_url?: string | null
+        }
+        Update: {
+          alert_threshold_pct?: number
+          last_card_alert_at?: string | null
+          last_monthly_alert_at?: string | null
+          updated_at?: string
+          user_id?: string
+          zapier_webhook_url?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
