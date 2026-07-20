@@ -313,6 +313,9 @@ export default function Dashboard() {
                   <div className="text-right">
                     <div className="text-sm font-semibold">{fmt(e.amount)}</div>
                   </div>
+                  <Button variant="ghost" size="icon" onClick={() => setEditingExpense(e)}>
+                    <Pencil className="h-4 w-4 text-muted-foreground" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => deleteExpense(e.id)}>
                     <Trash2 className="h-4 w-4 text-muted-foreground" />
                   </Button>
