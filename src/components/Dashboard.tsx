@@ -408,6 +408,22 @@ function AddExpenseDialog({
   const [saving, setSaving] = useState(false);
   const [receiptPath, setReceiptPath] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (open && expense) {
+      setAmount(String(expense.amount).replace(".", ","));
+      setDescription(expense.description ?? "");
+      setMerchant(expense.merchant ?? "");
+      setCategoryId(expense.category_id ?? "");
+      setSpentAt(expense.spent_at);
+      setIsCard(expense.is_credit_card);
+      setCardId(expense.card_id ?? "");
+      setReceiptPath(expense.receipt_url ?? null);
+    } else if (open && !expense) {
+      reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, expense?.id]);
+
   const reset = () => {
     setAmount(""); setDescription(""); setMerchant(""); setCategoryId("");
     setSpentAt(new Date().toISOString().slice(0, 10)); setIsCard(false); setReceiptPath(null);
