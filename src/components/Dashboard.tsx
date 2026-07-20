@@ -288,6 +288,7 @@ export default function Dashboard() {
             )}
             {expenses.map((e) => {
               const cat = categories.find((c) => c.id === e.category_id);
+              const card = cards.find((cc) => cc.id === e.card_id);
               return (
                 <Card key={e.id} className="p-3 flex items-center gap-3">
                   <div
@@ -302,7 +303,7 @@ export default function Dashboard() {
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {new Date(e.spent_at).toLocaleDateString("pt-BR")} · {cat?.name ?? "—"}
-                      {e.is_credit_card && " · Cartão"}
+                      {e.is_credit_card && ` · ${card ? `${card.name}${card.last4 ? ` •${card.last4}` : ""}` : "Cartão"}`}
                     </div>
                   </div>
                   <div className="text-right">
