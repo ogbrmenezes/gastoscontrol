@@ -595,13 +595,32 @@ function AddExpenseDialog({
               <Label>Estabelecimento</Label>
               <Input value={merchant} onChange={(e) => setMerchant(e.target.value)} />
             </div>
-            <div className="flex items-center justify-between col-span-2 rounded-md border p-3">
-              <Label htmlFor="card">Foi no cartão de crédito</Label>
-              <Switch id="card" checked={isCard} onCheckedChange={(v) => { setIsCard(v); if (!v) { setCardId(""); setShowNewCard(false); } }} />
+            <div className="space-y-2 col-span-2 rounded-md border p-3">
+              <Label>Forma de pagamento</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { v: "cash", label: "Dinheiro/Pix" },
+                  { v: "debit", label: "Débito" },
+                  { v: "credit", label: "Crédito" },
+                ] as const).map((opt) => (
+                  <Button
+                    key={opt.v}
+                    type="button"
+                    variant={paymentMethod === opt.v ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setPaymentMethod(opt.v);
+                      if (opt.v === "cash") { setCardId(""); setShowNewCard(false); }
+                    }}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
             </div>
-            {isCard && (
+            {paymentMethod !== "cash" && (
               <div className="space-y-2 col-span-2 rounded-md border p-3 bg-muted/30">
-                <Label>Qual cartão?</Label>
+                <Label>Qual cartão? ({paymentMethod === "credit" ? "Crédito" : "Débito"})</Label>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <Select value={cardId} onValueChange={setCardId}>
