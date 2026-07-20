@@ -26,7 +26,9 @@ import {
   Trash2,
   Pencil,
   DollarSign,
+  Download,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
   PieChart,
   Pie,
@@ -161,6 +163,77 @@ export default function Dashboard() {
     reload();
   };
 
+  const exportExcel = (scope: "month" | "year") => {
+    const list = scope === "month" ? monthExpenses : expenses;
+    if (list.length === 0) {
+      toast.error("Nenhum gasto para exportar");
+      return;
+    }
+    const rows = [...list]
+      .sort((a, b) => a.spent_at.localeCompare(b.spent_at))
+      .map((e) => {
+        const cat = categories.find((c) => c.id === e.category_id);
+        const card = cards.find((cc) => cc.id === e.card_id);
+        const pagamento = e.is_credit_card
+          ? "Crédito"
+          : e.card_id
+            ? "Débito"
+            : "Dinheiro/Pix";
+        return {
+          Data: new Date(e.spent_at).toLocaleDateString("pt-BR"),
+          Descrição: e.description ?? "",
+          Estabelecimento: e.merchant ?? "",
+          Categoria: cat?.name ?? "Sem categoria",
+          Pagamento: pagamento,
+          Cartão: card ? `${card.name}${card.last4 ? ` •${card.last4}` : ""}` : "",
+          Banco: card?.bank ?? "",
+          Valor: Number(e.amount),
+        };
+      });
+    const total = rows.reduce((s, r) => s + r.Valor, 0);
+    rows.push({
+      Data: "",
+      Descrição: "",
+      Estabelecimento: "",
+      Categoria: "",
+      Pagamento: "",
+      Cartão: "",
+      Banco: "TOTAL",
+      Valor: total,
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 12 }, { wch: 30 }, { wch: 22 }, { wch: 16 },
+      { wch: 14 }, { wch: 20 }, { wch: 14 }, { wch: 12 },
+    ];
+
+    // Aba resumo por categoria
+    const catMap = new Map<string, number>();
+    for (const e of list) {
+      const name = categories.find((c) => c.id === e.category_id)?.name ?? "Sem categoria";
+      catMap.set(name, (catMap.get(name) ?? 0) + e.amount);
+    }
+    const resumo = Array.from(catMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([Categoria, Total]) => ({ Categoria, Total }));
+    resumo.push({ Categoria: "TOTAL", Total: total });
+    const ws2 = XLSX.utils.json_to_sheet(resumo);
+    ws2["!cols"] = [{ wch: 24 }, { wch: 14 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Gastos");
+    XLSX.utils.book_append_sheet(wb, ws2, "Por categoria");
+
+    const label =
+      scope === "month"
+        ? `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
+        : String(year);
+    XLSX.writeFile(wb, `gastos-${label}.xlsx`);
+    toast.success("Excel gerado");
+  };
+
+
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-10 border-b bg-card/80 backdrop-blur">
@@ -226,6 +299,11 @@ export default function Dashboard() {
           </TabsList>
 
           <TabsContent value="month" className="space-y-4">
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => exportExcel("month")}>
+                <Download className="h-3.5 w-3.5 mr-1" /> Exportar mês (Excel)
+              </Button>
+            </div>
             <Card className="p-4">
               <h3 className="text-sm font-medium mb-3">Por categoria</h3>
               {byCategory.length === 0 ? (
@@ -262,6 +340,11 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="year" className="space-y-4">
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => exportExcel("year")}>
+                <Download className="h-3.5 w-3.5 mr-1" /> Exportar ano (Excel)
+              </Button>
+            </div>
             <Card className="p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-medium">Total {year}: {fmt(yearTotal)}</h3>
