@@ -708,6 +708,33 @@ function SettingsDialog({
             <Label>Limite da fatura do cartão (R$)</Label>
             <Input inputMode="decimal" value={card} onChange={(e) => setCard(e.target.value)} />
           </div>
+          <div className="space-y-2 rounded-md border p-3">
+            <Label>Meus cartões</Label>
+            {cards.length === 0 && (
+              <p className="text-xs text-muted-foreground">Nenhum cartão cadastrado.</p>
+            )}
+            <div className="space-y-1">
+              {cards.map((cc) => (
+                <div key={cc.id} className="flex items-center justify-between text-sm border rounded px-2 py-1.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: cc.color }} />
+                    <span className="truncate">{cc.name}{cc.bank ? ` · ${cc.bank}` : ""}{cc.last4 ? ` •${cc.last4}` : ""}</span>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => removeCard(cc.id)}>
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-2 pt-1">
+              <Input placeholder="Nome (ex: Nubank Roxinho)" value={newCardName} onChange={(e) => setNewCardName(e.target.value)} />
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="Banco" value={newCardBank} onChange={(e) => setNewCardBank(e.target.value)} />
+                <Input placeholder="Últimos 4" maxLength={4} value={newCardLast4} onChange={(e) => setNewCardLast4(e.target.value.replace(/\D/g, ""))} />
+              </div>
+              <Button type="button" variant="outline" size="sm" className="w-full" onClick={addCard}>Adicionar cartão</Button>
+            </div>
+          </div>
           <div className="space-y-1">
             <Label>Avisar quando atingir (%)</Label>
             <Input inputMode="numeric" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
