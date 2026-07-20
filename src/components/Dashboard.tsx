@@ -24,6 +24,8 @@ import {
   TrendingUp,
   CreditCard,
   Trash2,
+  Pencil,
+  DollarSign,
 } from "lucide-react";
 import {
   PieChart,
