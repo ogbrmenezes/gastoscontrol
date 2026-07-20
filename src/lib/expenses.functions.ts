@@ -82,6 +82,31 @@ const CreateExpenseInput = z.object({
   receipt_url: z.string().optional().nullable(),
 });
 
+const UpdateExpenseInput = CreateExpenseInput.extend({ id: z.string().uuid() });
+
+export const updateExpense = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v: unknown) => UpdateExpenseInput.parse(v))
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { id, ...fields } = data;
+    const { error } = await (supabase.from("expenses") as any)
+      .update({
+        amount: fields.amount,
+        category_id: fields.category_id ?? null,
+        description: fields.description ?? null,
+        merchant: fields.merchant ?? null,
+        spent_at: fields.spent_at,
+        is_credit_card: fields.is_credit_card,
+        card_id: fields.card_id ?? null,
+        receipt_url: fields.receipt_url ?? null,
+      })
+      .eq("id", id)
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return { id };
+  });
+
 export const createExpense = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((v: unknown) => CreateExpenseInput.parse(v))
