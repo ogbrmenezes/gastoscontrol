@@ -379,6 +379,7 @@ function AddExpenseDialog({
   cards,
   onSaved,
   onCardsChanged,
+  expense,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -386,9 +387,12 @@ function AddExpenseDialog({
   cards: Card_[];
   onSaved: () => void;
   onCardsChanged: () => void;
+  expense?: Expense | null;
 }) {
   const analyze = useServerFn(analyzeReceipt);
   const create = useServerFn(createExpense);
+  const update = useServerFn(updateExpense);
+  const isEdit = !!expense;
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [merchant, setMerchant] = useState("");
