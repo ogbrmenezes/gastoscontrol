@@ -61,6 +61,7 @@ const fmt = (n: number) =>
 
 export default function Dashboard() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [cards, setCards] = useState<Card_[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [settings, setSettings] = useState<Settings>({
@@ -74,8 +75,9 @@ export default function Dashboard() {
 
   const reload = async () => {
     setLoading(true);
-    const [c, e, b, s] = await Promise.all([
+    const [c, cd, e, b, s] = await Promise.all([
       supabase.from("categories").select("*").order("name"),
+      (supabase.from as any)("cards").select("*").order("created_at"),
       supabase
         .from("expenses")
         .select("*")
@@ -86,6 +88,7 @@ export default function Dashboard() {
       supabase.from("user_settings").select("*").maybeSingle(),
     ]);
     setCategories((c.data ?? []) as any);
+    setCards((cd.data ?? []) as any);
     setExpenses(((e.data ?? []) as any).map((x: any) => ({ ...x, amount: Number(x.amount) })));
     setBudgets(((b.data ?? []) as any).map((x: any) => ({ ...x, limit_amount: Number(x.limit_amount) })));
     if (s.data) setSettings({ zapier_webhook_url: s.data.zapier_webhook_url, alert_threshold_pct: s.data.alert_threshold_pct });
