@@ -98,8 +98,9 @@ export const createExpense = createServerFn({ method: "POST" })
         merchant: data.merchant ?? null,
         spent_at: data.spent_at,
         is_credit_card: data.is_credit_card,
+        card_id: data.card_id ?? null,
         receipt_url: data.receipt_url ?? null,
-      })
+      } as any)
       .select("id")
       .single();
     if (error) throw new Error(error.message);
