@@ -38,6 +38,36 @@ export type Database = {
         }
         Relationships: []
       }
+      cards: {
+        Row: {
+          bank: string | null
+          color: string
+          created_at: string
+          id: string
+          last4: string | null
+          name: string
+          user_id: string
+        }
+        Insert: {
+          bank?: string | null
+          color?: string
+          created_at?: string
+          id?: string
+          last4?: string | null
+          name: string
+          user_id: string
+        }
+        Update: {
+          bank?: string | null
+          color?: string
+          created_at?: string
+          id?: string
+          last4?: string | null
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           color: string
@@ -68,6 +98,7 @@ export type Database = {
       expenses: {
         Row: {
           amount: number
+          card_id: string | null
           category_id: string | null
           created_at: string
           description: string | null
@@ -80,6 +111,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          card_id?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
@@ -92,6 +124,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          card_id?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
@@ -103,6 +136,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "expenses_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "expenses_category_id_fkey"
             columns: ["category_id"]

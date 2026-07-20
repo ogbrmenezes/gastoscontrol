@@ -78,6 +78,7 @@ const CreateExpenseInput = z.object({
   merchant: z.string().max(200).optional().nullable(),
   spent_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   is_credit_card: z.boolean().default(false),
+  card_id: z.string().uuid().nullable().optional(),
   receipt_url: z.string().optional().nullable(),
 });
 
@@ -97,8 +98,9 @@ export const createExpense = createServerFn({ method: "POST" })
         merchant: data.merchant ?? null,
         spent_at: data.spent_at,
         is_credit_card: data.is_credit_card,
+        card_id: data.card_id ?? null,
         receipt_url: data.receipt_url ?? null,
-      })
+      } as any)
       .select("id")
       .single();
     if (error) throw new Error(error.message);

@@ -41,6 +41,7 @@ import {
 } from "recharts";
 
 type Category = { id: string; name: string; color: string; icon: string };
+type Card_ = { id: string; name: string; bank: string | null; last4: string | null; color: string };
 type Expense = {
   id: string;
   amount: number;
@@ -49,6 +50,7 @@ type Expense = {
   spent_at: string;
   is_credit_card: boolean;
   category_id: string | null;
+  card_id: string | null;
   receipt_url: string | null;
 };
 type Budget = { id: string; budget_type: "monthly" | "credit_card"; limit_amount: number };
@@ -59,6 +61,7 @@ const fmt = (n: number) =>
 
 export default function Dashboard() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [cards, setCards] = useState<Card_[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [settings, setSettings] = useState<Settings>({
@@ -72,8 +75,9 @@ export default function Dashboard() {
 
   const reload = async () => {
     setLoading(true);
-    const [c, e, b, s] = await Promise.all([
+    const [c, cd, e, b, s] = await Promise.all([
       supabase.from("categories").select("*").order("name"),
+      (supabase.from as any)("cards").select("*").order("created_at"),
       supabase
         .from("expenses")
         .select("*")
@@ -84,6 +88,7 @@ export default function Dashboard() {
       supabase.from("user_settings").select("*").maybeSingle(),
     ]);
     setCategories((c.data ?? []) as any);
+    setCards((cd.data ?? []) as any);
     setExpenses(((e.data ?? []) as any).map((x: any) => ({ ...x, amount: Number(x.amount) })));
     setBudgets(((b.data ?? []) as any).map((x: any) => ({ ...x, limit_amount: Number(x.limit_amount) })));
     if (s.data) setSettings({ zapier_webhook_url: s.data.zapier_webhook_url, alert_threshold_pct: s.data.alert_threshold_pct });
@@ -283,6 +288,7 @@ export default function Dashboard() {
             )}
             {expenses.map((e) => {
               const cat = categories.find((c) => c.id === e.category_id);
+              const card = cards.find((cc) => cc.id === e.card_id);
               return (
                 <Card key={e.id} className="p-3 flex items-center gap-3">
                   <div
@@ -297,7 +303,7 @@ export default function Dashboard() {
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {new Date(e.spent_at).toLocaleDateString("pt-BR")} · {cat?.name ?? "—"}
-                      {e.is_credit_card && " · Cartão"}
+                      {e.is_credit_card && ` · ${card ? `${card.name}${card.last4 ? ` •${card.last4}` : ""}` : "Cartão"}`}
                     </div>
                   </div>
                   <div className="text-right">
@@ -331,10 +337,12 @@ export default function Dashboard() {
         open={showAdd}
         onOpenChange={setShowAdd}
         categories={categories}
+        cards={cards}
         onSaved={() => {
           setShowAdd(false);
           reload();
         }}
+        onCardsChanged={reload}
       />
 
       <SettingsDialog
@@ -342,6 +350,8 @@ export default function Dashboard() {
         onOpenChange={setShowSettings}
         budgets={budgets}
         settings={settings}
+        cards={cards}
+        onCardsChanged={reload}
         onSaved={() => {
           setShowSettings(false);
           reload();
@@ -355,12 +365,16 @@ function AddExpenseDialog({
   open,
   onOpenChange,
   categories,
+  cards,
   onSaved,
+  onCardsChanged,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   categories: Category[];
+  cards: Card_[];
   onSaved: () => void;
+  onCardsChanged: () => void;
 }) {
   const analyze = useServerFn(analyzeReceipt);
   const create = useServerFn(createExpense);
@@ -370,6 +384,11 @@ function AddExpenseDialog({
   const [categoryId, setCategoryId] = useState<string>("");
   const [spentAt, setSpentAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [isCard, setIsCard] = useState(false);
+  const [cardId, setCardId] = useState<string>("");
+  const [showNewCard, setShowNewCard] = useState(false);
+  const [newCardName, setNewCardName] = useState("");
+  const [newCardBank, setNewCardBank] = useState("");
+  const [newCardLast4, setNewCardLast4] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [receiptPath, setReceiptPath] = useState<string | null>(null);
@@ -377,6 +396,26 @@ function AddExpenseDialog({
   const reset = () => {
     setAmount(""); setDescription(""); setMerchant(""); setCategoryId("");
     setSpentAt(new Date().toISOString().slice(0, 10)); setIsCard(false); setReceiptPath(null);
+    setCardId(""); setShowNewCard(false); setNewCardName(""); setNewCardBank(""); setNewCardLast4("");
+  };
+
+  const addCard = async () => {
+    if (!newCardName.trim()) { toast.error("Dê um nome ao cartão"); return; }
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id;
+    if (!uid) return;
+    const { data, error } = await (supabase.from as any)("cards").insert({
+      user_id: uid,
+      name: newCardName.trim(),
+      bank: newCardBank.trim() || null,
+      last4: newCardLast4.trim() || null,
+    }).select("id").single();
+    if (error) { toast.error(error.message); return; }
+    setShowNewCard(false);
+    setNewCardName(""); setNewCardBank(""); setNewCardLast4("");
+    onCardsChanged();
+    setCardId(data.id);
+    toast.success("Cartão adicionado");
   };
 
   const handlePhoto = async (file: File) => {
@@ -440,6 +479,7 @@ function AddExpenseDialog({
           merchant: merchant || null,
           spent_at: spentAt,
           is_credit_card: isCard,
+          card_id: isCard ? (cardId || null) : null,
           receipt_url: receiptPath,
         },
       });
@@ -520,8 +560,41 @@ function AddExpenseDialog({
             </div>
             <div className="flex items-center justify-between col-span-2 rounded-md border p-3">
               <Label htmlFor="card">Foi no cartão de crédito</Label>
-              <Switch id="card" checked={isCard} onCheckedChange={setIsCard} />
+              <Switch id="card" checked={isCard} onCheckedChange={(v) => { setIsCard(v); if (!v) { setCardId(""); setShowNewCard(false); } }} />
             </div>
+            {isCard && (
+              <div className="space-y-2 col-span-2 rounded-md border p-3 bg-muted/30">
+                <Label>Qual cartão?</Label>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Select value={cardId} onValueChange={setCardId}>
+                      <SelectTrigger><SelectValue placeholder={cards.length ? "Selecione o cartão" : "Nenhum cartão cadastrado"} /></SelectTrigger>
+                      <SelectContent>
+                        {cards.map((cc) => (
+                          <SelectItem key={cc.id} value={cc.id}>
+                            <span className="inline-block h-2 w-2 rounded-full mr-2" style={{ backgroundColor: cc.color }} />
+                            {cc.name}{cc.bank ? ` · ${cc.bank}` : ""}{cc.last4 ? ` •${cc.last4}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowNewCard((s) => !s)}>
+                    {showNewCard ? "Cancelar" : "Novo"}
+                  </Button>
+                </div>
+                {showNewCard && (
+                  <div className="space-y-2 pt-2">
+                    <Input placeholder="Nome (ex: Nubank Roxinho)" value={newCardName} onChange={(e) => setNewCardName(e.target.value)} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input placeholder="Banco" value={newCardBank} onChange={(e) => setNewCardBank(e.target.value)} />
+                      <Input placeholder="Últimos 4" maxLength={4} value={newCardLast4} onChange={(e) => setNewCardLast4(e.target.value.replace(/\D/g, ""))} />
+                    </div>
+                    <Button type="button" size="sm" className="w-full" onClick={addCard}>Adicionar cartão</Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <Button className="w-full" onClick={handleSave} disabled={saving}>
@@ -538,12 +611,16 @@ function SettingsDialog({
   onOpenChange,
   budgets,
   settings,
+  cards,
+  onCardsChanged,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   budgets: Budget[];
   settings: Settings;
+  cards: Card_[];
+  onCardsChanged: () => void;
   onSaved: () => void;
 }) {
   const [monthly, setMonthly] = useState("");
@@ -551,6 +628,34 @@ function SettingsDialog({
   const [webhook, setWebhook] = useState("");
   const [threshold, setThreshold] = useState("80");
   const [saving, setSaving] = useState(false);
+  const [newCardName, setNewCardName] = useState("");
+  const [newCardBank, setNewCardBank] = useState("");
+  const [newCardLast4, setNewCardLast4] = useState("");
+
+  const addCard = async () => {
+    if (!newCardName.trim()) { toast.error("Dê um nome ao cartão"); return; }
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id;
+    if (!uid) return;
+    const { error } = await (supabase.from as any)("cards").insert({
+      user_id: uid,
+      name: newCardName.trim(),
+      bank: newCardBank.trim() || null,
+      last4: newCardLast4.trim() || null,
+    });
+    if (error) { toast.error(error.message); return; }
+    setNewCardName(""); setNewCardBank(""); setNewCardLast4("");
+    onCardsChanged();
+    toast.success("Cartão adicionado");
+  };
+
+  const removeCard = async (id: string) => {
+    if (!confirm("Remover este cartão? Os gastos existentes ficarão sem cartão vinculado.")) return;
+    const { error } = await (supabase.from as any)("cards").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    onCardsChanged();
+  };
+
 
   useEffect(() => {
     setMonthly(String(budgets.find((b) => b.budget_type === "monthly")?.limit_amount ?? ""));
@@ -602,6 +707,33 @@ function SettingsDialog({
           <div className="space-y-1">
             <Label>Limite da fatura do cartão (R$)</Label>
             <Input inputMode="decimal" value={card} onChange={(e) => setCard(e.target.value)} />
+          </div>
+          <div className="space-y-2 rounded-md border p-3">
+            <Label>Meus cartões</Label>
+            {cards.length === 0 && (
+              <p className="text-xs text-muted-foreground">Nenhum cartão cadastrado.</p>
+            )}
+            <div className="space-y-1">
+              {cards.map((cc) => (
+                <div key={cc.id} className="flex items-center justify-between text-sm border rounded px-2 py-1.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: cc.color }} />
+                    <span className="truncate">{cc.name}{cc.bank ? ` · ${cc.bank}` : ""}{cc.last4 ? ` •${cc.last4}` : ""}</span>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => removeCard(cc.id)}>
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <div className="space-y-2 pt-1">
+              <Input placeholder="Nome (ex: Nubank Roxinho)" value={newCardName} onChange={(e) => setNewCardName(e.target.value)} />
+              <div className="grid grid-cols-2 gap-2">
+                <Input placeholder="Banco" value={newCardBank} onChange={(e) => setNewCardBank(e.target.value)} />
+                <Input placeholder="Últimos 4" maxLength={4} value={newCardLast4} onChange={(e) => setNewCardLast4(e.target.value.replace(/\D/g, ""))} />
+              </div>
+              <Button type="button" variant="outline" size="sm" className="w-full" onClick={addCard}>Adicionar cartão</Button>
+            </div>
           </div>
           <div className="space-y-1">
             <Label>Avisar quando atingir (%)</Label>
