@@ -479,6 +479,7 @@ function AddExpenseDialog({
           merchant: merchant || null,
           spent_at: spentAt,
           is_credit_card: isCard,
+          card_id: isCard ? (cardId || null) : null,
           receipt_url: receiptPath,
         },
       });
