@@ -365,12 +365,16 @@ function AddExpenseDialog({
   open,
   onOpenChange,
   categories,
+  cards,
   onSaved,
+  onCardsChanged,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   categories: Category[];
+  cards: Card_[];
   onSaved: () => void;
+  onCardsChanged: () => void;
 }) {
   const analyze = useServerFn(analyzeReceipt);
   const create = useServerFn(createExpense);
@@ -380,6 +384,11 @@ function AddExpenseDialog({
   const [categoryId, setCategoryId] = useState<string>("");
   const [spentAt, setSpentAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [isCard, setIsCard] = useState(false);
+  const [cardId, setCardId] = useState<string>("");
+  const [showNewCard, setShowNewCard] = useState(false);
+  const [newCardName, setNewCardName] = useState("");
+  const [newCardBank, setNewCardBank] = useState("");
+  const [newCardLast4, setNewCardLast4] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [receiptPath, setReceiptPath] = useState<string | null>(null);
@@ -387,6 +396,26 @@ function AddExpenseDialog({
   const reset = () => {
     setAmount(""); setDescription(""); setMerchant(""); setCategoryId("");
     setSpentAt(new Date().toISOString().slice(0, 10)); setIsCard(false); setReceiptPath(null);
+    setCardId(""); setShowNewCard(false); setNewCardName(""); setNewCardBank(""); setNewCardLast4("");
+  };
+
+  const addCard = async () => {
+    if (!newCardName.trim()) { toast.error("Dê um nome ao cartão"); return; }
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id;
+    if (!uid) return;
+    const { data, error } = await (supabase.from as any)("cards").insert({
+      user_id: uid,
+      name: newCardName.trim(),
+      bank: newCardBank.trim() || null,
+      last4: newCardLast4.trim() || null,
+    }).select("id").single();
+    if (error) { toast.error(error.message); return; }
+    setShowNewCard(false);
+    setNewCardName(""); setNewCardBank(""); setNewCardLast4("");
+    onCardsChanged();
+    setCardId(data.id);
+    toast.success("Cartão adicionado");
   };
 
   const handlePhoto = async (file: File) => {
