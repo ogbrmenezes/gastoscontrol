@@ -78,6 +78,7 @@ const CreateExpenseInput = z.object({
   merchant: z.string().max(200).optional().nullable(),
   spent_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   is_credit_card: z.boolean().default(false),
+  card_id: z.string().uuid().nullable().optional(),
   receipt_url: z.string().optional().nullable(),
 });
 
