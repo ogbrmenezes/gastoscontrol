@@ -793,3 +793,56 @@ function SettingsDialog({
     </Dialog>
   );
 }
+
+function UsdTicker() {
+  const [rate, setRate] = useState<number | null>(null);
+  const [pct, setPct] = useState<number | null>(null);
+
+  const fetchRate = async () => {
+    try {
+      const res = await fetch("https://economia.awesomeapi.com.br/json/last/USD-BRL");
+      const json = await res.json();
+      const q = json.USDBRL;
+      if (q) {
+        setRate(Number(q.bid));
+        setPct(Number(q.pctChange));
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  useEffect(() => {
+    fetchRate();
+    const id = setInterval(fetchRate, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (rate === null) {
+    return (
+      <div className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground">
+        <DollarSign className="h-3 w-3" />
+        <span>—</span>
+      </div>
+    );
+  }
+  const up = (pct ?? 0) >= 0;
+  return (
+    <button
+      onClick={fetchRate}
+      title="Cotação USD/BRL (clique para atualizar)"
+      className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-accent transition"
+    >
+      <DollarSign className="h-3 w-3 text-primary" />
+      <span className="font-medium tabular-nums">
+        {rate.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+      </span>
+      {pct !== null && (
+        <span className={`tabular-nums ${up ? "text-emerald-600" : "text-red-600"}`}>
+          {up ? "▲" : "▼"}
+          {Math.abs(pct).toFixed(2)}%
+        </span>
+      )}
+    </button>
+  );
+}
