@@ -560,8 +560,41 @@ function AddExpenseDialog({
             </div>
             <div className="flex items-center justify-between col-span-2 rounded-md border p-3">
               <Label htmlFor="card">Foi no cartão de crédito</Label>
-              <Switch id="card" checked={isCard} onCheckedChange={setIsCard} />
+              <Switch id="card" checked={isCard} onCheckedChange={(v) => { setIsCard(v); if (!v) { setCardId(""); setShowNewCard(false); } }} />
             </div>
+            {isCard && (
+              <div className="space-y-2 col-span-2 rounded-md border p-3 bg-muted/30">
+                <Label>Qual cartão?</Label>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Select value={cardId} onValueChange={setCardId}>
+                      <SelectTrigger><SelectValue placeholder={cards.length ? "Selecione o cartão" : "Nenhum cartão cadastrado"} /></SelectTrigger>
+                      <SelectContent>
+                        {cards.map((cc) => (
+                          <SelectItem key={cc.id} value={cc.id}>
+                            <span className="inline-block h-2 w-2 rounded-full mr-2" style={{ backgroundColor: cc.color }} />
+                            {cc.name}{cc.bank ? ` · ${cc.bank}` : ""}{cc.last4 ? ` •${cc.last4}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowNewCard((s) => !s)}>
+                    {showNewCard ? "Cancelar" : "Novo"}
+                  </Button>
+                </div>
+                {showNewCard && (
+                  <div className="space-y-2 pt-2">
+                    <Input placeholder="Nome (ex: Nubank Roxinho)" value={newCardName} onChange={(e) => setNewCardName(e.target.value)} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input placeholder="Banco" value={newCardBank} onChange={(e) => setNewCardBank(e.target.value)} />
+                      <Input placeholder="Últimos 4" maxLength={4} value={newCardLast4} onChange={(e) => setNewCardLast4(e.target.value.replace(/\D/g, ""))} />
+                    </div>
+                    <Button type="button" size="sm" className="w-full" onClick={addCard}>Adicionar cartão</Button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <Button className="w-full" onClick={handleSave} disabled={saving}>
