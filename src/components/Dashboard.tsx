@@ -299,6 +299,11 @@ export default function Dashboard() {
           </TabsList>
 
           <TabsContent value="month" className="space-y-4">
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => exportExcel("month")}>
+                <Download className="h-3.5 w-3.5 mr-1" /> Exportar mês (Excel)
+              </Button>
+            </div>
             <Card className="p-4">
               <h3 className="text-sm font-medium mb-3">Por categoria</h3>
               {byCategory.length === 0 ? (
