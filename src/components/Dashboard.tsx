@@ -307,7 +307,11 @@ export default function Dashboard() {
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {new Date(e.spent_at).toLocaleDateString("pt-BR")} · {cat?.name ?? "—"}
-                      {e.is_credit_card && ` · ${card ? `${card.name}${card.last4 ? ` •${card.last4}` : ""}` : "Cartão"}`}
+                      {e.is_credit_card
+                        ? ` · Crédito${card ? ` ${card.name}${card.last4 ? ` •${card.last4}` : ""}` : ""}`
+                        : e.card_id
+                          ? ` · Débito${card ? ` ${card.name}${card.last4 ? ` •${card.last4}` : ""}` : ""}`
+                          : ""}
                     </div>
                   </div>
                   <div className="text-right">
@@ -398,7 +402,7 @@ function AddExpenseDialog({
   const [merchant, setMerchant] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [spentAt, setSpentAt] = useState(() => new Date().toISOString().slice(0, 10));
-  const [isCard, setIsCard] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "debit" | "credit">("cash");
   const [cardId, setCardId] = useState<string>("");
   const [showNewCard, setShowNewCard] = useState(false);
   const [newCardName, setNewCardName] = useState("");
@@ -415,7 +419,9 @@ function AddExpenseDialog({
       setMerchant(expense.merchant ?? "");
       setCategoryId(expense.category_id ?? "");
       setSpentAt(expense.spent_at);
-      setIsCard(expense.is_credit_card);
+      setPaymentMethod(
+        expense.is_credit_card ? "credit" : expense.card_id ? "debit" : "cash",
+      );
       setCardId(expense.card_id ?? "");
       setReceiptPath(expense.receipt_url ?? null);
     } else if (open && !expense) {
@@ -426,7 +432,7 @@ function AddExpenseDialog({
 
   const reset = () => {
     setAmount(""); setDescription(""); setMerchant(""); setCategoryId("");
-    setSpentAt(new Date().toISOString().slice(0, 10)); setIsCard(false); setReceiptPath(null);
+    setSpentAt(new Date().toISOString().slice(0, 10)); setPaymentMethod("cash"); setReceiptPath(null);
     setCardId(""); setShowNewCard(false); setNewCardName(""); setNewCardBank(""); setNewCardLast4("");
   };
 
@@ -508,8 +514,8 @@ function AddExpenseDialog({
         description: description || null,
         merchant: merchant || null,
         spent_at: spentAt,
-        is_credit_card: isCard,
-        card_id: isCard ? (cardId || null) : null,
+        is_credit_card: paymentMethod === "credit",
+        card_id: paymentMethod === "cash" ? null : (cardId || null),
         receipt_url: receiptPath,
       };
       if (isEdit && expense) {
@@ -593,13 +599,32 @@ function AddExpenseDialog({
               <Label>Estabelecimento</Label>
               <Input value={merchant} onChange={(e) => setMerchant(e.target.value)} />
             </div>
-            <div className="flex items-center justify-between col-span-2 rounded-md border p-3">
-              <Label htmlFor="card">Foi no cartão de crédito</Label>
-              <Switch id="card" checked={isCard} onCheckedChange={(v) => { setIsCard(v); if (!v) { setCardId(""); setShowNewCard(false); } }} />
+            <div className="space-y-2 col-span-2 rounded-md border p-3">
+              <Label>Forma de pagamento</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { v: "cash", label: "Dinheiro/Pix" },
+                  { v: "debit", label: "Débito" },
+                  { v: "credit", label: "Crédito" },
+                ] as const).map((opt) => (
+                  <Button
+                    key={opt.v}
+                    type="button"
+                    variant={paymentMethod === opt.v ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setPaymentMethod(opt.v);
+                      if (opt.v === "cash") { setCardId(""); setShowNewCard(false); }
+                    }}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
             </div>
-            {isCard && (
+            {paymentMethod !== "cash" && (
               <div className="space-y-2 col-span-2 rounded-md border p-3 bg-muted/30">
-                <Label>Qual cartão?</Label>
+                <Label>Qual cartão? ({paymentMethod === "credit" ? "Crédito" : "Débito"})</Label>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <Select value={cardId} onValueChange={setCardId}>
