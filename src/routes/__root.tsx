@@ -80,10 +80,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Meus Gastos — controle financeiro pessoal" },
       { name: "description", content: "Lance gastos rapidamente pelo celular com leitura de comprovante por IA, dashboards e alertas de orçamento no WhatsApp." },
-      { property: "og:title", content: "Meus Gastos" },
-      { property: "og:description", content: "Controle de gastos pessoais com IA e alertas no WhatsApp." },
+      { property: "og:title", content: "Meus Gastos — controle financeiro pessoal" },
+      { property: "og:description", content: "Lance gastos rapidamente pelo celular com leitura de comprovante por IA, dashboards e alertas de orçamento no WhatsApp." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Meus Gastos — controle financeiro pessoal" },
+      { name: "twitter:description", content: "Lance gastos rapidamente pelo celular com leitura de comprovante por IA, dashboards e alertas de orçamento no WhatsApp." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fe797014-28aa-4b42-9ef2-2ca05a516031/id-preview-f651ebde--d4db88dd-01de-4a41-91da-373824c61949.lovable.app-1784579329971.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/fe797014-28aa-4b42-9ef2-2ca05a516031/id-preview-f651ebde--d4db88dd-01de-4a41-91da-373824c61949.lovable.app-1784579329971.png" },
     ],
     links: [
       {
