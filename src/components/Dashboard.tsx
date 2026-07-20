@@ -633,7 +633,7 @@ function AddExpenseDialog({
           </div>
 
           <Button className="w-full" onClick={handleSave} disabled={saving}>
-            {saving ? "Salvando..." : "Salvar gasto"}
+            {saving ? "Salvando..." : isEdit ? "Salvar alterações" : "Salvar gasto"}
           </Button>
         </div>
       </DialogContent>
