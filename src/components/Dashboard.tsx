@@ -337,10 +337,12 @@ export default function Dashboard() {
         open={showAdd}
         onOpenChange={setShowAdd}
         categories={categories}
+        cards={cards}
         onSaved={() => {
           setShowAdd(false);
           reload();
         }}
+        onCardsChanged={reload}
       />
 
       <SettingsDialog
@@ -348,6 +350,8 @@ export default function Dashboard() {
         onOpenChange={setShowSettings}
         budgets={budgets}
         settings={settings}
+        cards={cards}
+        onCardsChanged={reload}
         onSaved={() => {
           setShowSettings(false);
           reload();
