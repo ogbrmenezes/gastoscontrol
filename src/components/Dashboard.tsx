@@ -164,12 +164,13 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-10 border-b bg-card/80 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-primary" />
-            <h1 className="text-base font-semibold">Meus Gastos</h1>
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Wallet className="h-5 w-5 text-primary shrink-0" />
+            <h1 className="text-base font-semibold truncate">Meus Gastos</h1>
           </div>
           <div className="flex items-center gap-1">
+            <UsdTicker />
             <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)}>
               <SettingsIcon className="h-4 w-4" />
             </Button>
