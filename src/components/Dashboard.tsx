@@ -307,7 +307,11 @@ export default function Dashboard() {
                     </div>
                     <div className="text-xs text-muted-foreground">
                       {new Date(e.spent_at).toLocaleDateString("pt-BR")} · {cat?.name ?? "—"}
-                      {e.is_credit_card && ` · ${card ? `${card.name}${card.last4 ? ` •${card.last4}` : ""}` : "Cartão"}`}
+                      {e.is_credit_card
+                        ? ` · Crédito${card ? ` ${card.name}${card.last4 ? ` •${card.last4}` : ""}` : ""}`
+                        : e.card_id
+                          ? ` · Débito${card ? ` ${card.name}${card.last4 ? ` •${card.last4}` : ""}` : ""}`
+                          : ""}
                     </div>
                   </div>
                   <div className="text-right">
