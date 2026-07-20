@@ -502,19 +502,23 @@ function AddExpenseDialog({
     }
     setSaving(true);
     try {
-      await create({
-        data: {
-          amount: value,
-          category_id: categoryId || null,
-          description: description || null,
-          merchant: merchant || null,
-          spent_at: spentAt,
-          is_credit_card: isCard,
-          card_id: isCard ? (cardId || null) : null,
-          receipt_url: receiptPath,
-        },
-      });
-      toast.success("Gasto lançado!");
+      const payload = {
+        amount: value,
+        category_id: categoryId || null,
+        description: description || null,
+        merchant: merchant || null,
+        spent_at: spentAt,
+        is_credit_card: isCard,
+        card_id: isCard ? (cardId || null) : null,
+        receipt_url: receiptPath,
+      };
+      if (isEdit && expense) {
+        await update({ data: { ...payload, id: expense.id } });
+        toast.success("Gasto atualizado!");
+      } else {
+        await create({ data: payload });
+        toast.success("Gasto lançado!");
+      }
       reset();
       onSaved();
     } catch (e: any) {
@@ -528,7 +532,7 @@ function AddExpenseDialog({
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Novo gasto</DialogTitle>
+          <DialogTitle>{isEdit ? "Editar gasto" : "Novo gasto"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
