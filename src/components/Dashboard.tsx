@@ -628,6 +628,34 @@ function SettingsDialog({
   const [webhook, setWebhook] = useState("");
   const [threshold, setThreshold] = useState("80");
   const [saving, setSaving] = useState(false);
+  const [newCardName, setNewCardName] = useState("");
+  const [newCardBank, setNewCardBank] = useState("");
+  const [newCardLast4, setNewCardLast4] = useState("");
+
+  const addCard = async () => {
+    if (!newCardName.trim()) { toast.error("Dê um nome ao cartão"); return; }
+    const { data: userData } = await supabase.auth.getUser();
+    const uid = userData.user?.id;
+    if (!uid) return;
+    const { error } = await (supabase.from as any)("cards").insert({
+      user_id: uid,
+      name: newCardName.trim(),
+      bank: newCardBank.trim() || null,
+      last4: newCardLast4.trim() || null,
+    });
+    if (error) { toast.error(error.message); return; }
+    setNewCardName(""); setNewCardBank(""); setNewCardLast4("");
+    onCardsChanged();
+    toast.success("Cartão adicionado");
+  };
+
+  const removeCard = async (id: string) => {
+    if (!confirm("Remover este cartão? Os gastos existentes ficarão sem cartão vinculado.")) return;
+    const { error } = await (supabase.from as any)("cards").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    onCardsChanged();
+  };
+
 
   useEffect(() => {
     setMonthly(String(budgets.find((b) => b.budget_type === "monthly")?.limit_amount ?? ""));
