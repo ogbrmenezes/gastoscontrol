@@ -398,7 +398,7 @@ function AddExpenseDialog({
   const [merchant, setMerchant] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
   const [spentAt, setSpentAt] = useState(() => new Date().toISOString().slice(0, 10));
-  const [isCard, setIsCard] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "debit" | "credit">("cash");
   const [cardId, setCardId] = useState<string>("");
   const [showNewCard, setShowNewCard] = useState(false);
   const [newCardName, setNewCardName] = useState("");
@@ -415,7 +415,9 @@ function AddExpenseDialog({
       setMerchant(expense.merchant ?? "");
       setCategoryId(expense.category_id ?? "");
       setSpentAt(expense.spent_at);
-      setIsCard(expense.is_credit_card);
+      setPaymentMethod(
+        expense.is_credit_card ? "credit" : expense.card_id ? "debit" : "cash",
+      );
       setCardId(expense.card_id ?? "");
       setReceiptPath(expense.receipt_url ?? null);
     } else if (open && !expense) {
@@ -426,7 +428,7 @@ function AddExpenseDialog({
 
   const reset = () => {
     setAmount(""); setDescription(""); setMerchant(""); setCategoryId("");
-    setSpentAt(new Date().toISOString().slice(0, 10)); setIsCard(false); setReceiptPath(null);
+    setSpentAt(new Date().toISOString().slice(0, 10)); setPaymentMethod("cash"); setReceiptPath(null);
     setCardId(""); setShowNewCard(false); setNewCardName(""); setNewCardBank(""); setNewCardLast4("");
   };
 
