@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable as _lovable } from "@/integrations/lovable";
 import { useServerFn } from "@tanstack/react-start";
-import { analyzeReceipt, createExpense } from "@/lib/expenses.functions";
+import { analyzeReceipt, createExpense, updateExpense } from "@/lib/expenses.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,8 @@ import {
   TrendingUp,
   CreditCard,
   Trash2,
+  Pencil,
+  DollarSign,
 } from "lucide-react";
 import {
   PieChart,
@@ -70,6 +72,7 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [year, setYear] = useState(new Date().getFullYear());
 
@@ -161,12 +164,13 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-background pb-24">
       <header className="sticky top-0 z-10 border-b bg-card/80 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-primary" />
-            <h1 className="text-base font-semibold">Meus Gastos</h1>
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Wallet className="h-5 w-5 text-primary shrink-0" />
+            <h1 className="text-base font-semibold truncate">Meus Gastos</h1>
           </div>
           <div className="flex items-center gap-1">
+            <UsdTicker />
             <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)}>
               <SettingsIcon className="h-4 w-4" />
             </Button>
@@ -309,6 +313,9 @@ export default function Dashboard() {
                   <div className="text-right">
                     <div className="text-sm font-semibold">{fmt(e.amount)}</div>
                   </div>
+                  <Button variant="ghost" size="icon" onClick={() => setEditingExpense(e)}>
+                    <Pencil className="h-4 w-4 text-muted-foreground" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => deleteExpense(e.id)}>
                     <Trash2 className="h-4 w-4 text-muted-foreground" />
                   </Button>
@@ -334,12 +341,16 @@ export default function Dashboard() {
       </div>
 
       <AddExpenseDialog
-        open={showAdd}
-        onOpenChange={setShowAdd}
+        open={showAdd || !!editingExpense}
+        expense={editingExpense}
+        onOpenChange={(v) => {
+          if (!v) { setShowAdd(false); setEditingExpense(null); }
+        }}
         categories={categories}
         cards={cards}
         onSaved={() => {
           setShowAdd(false);
+          setEditingExpense(null);
           reload();
         }}
         onCardsChanged={reload}
@@ -368,6 +379,7 @@ function AddExpenseDialog({
   cards,
   onSaved,
   onCardsChanged,
+  expense,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -375,9 +387,12 @@ function AddExpenseDialog({
   cards: Card_[];
   onSaved: () => void;
   onCardsChanged: () => void;
+  expense?: Expense | null;
 }) {
   const analyze = useServerFn(analyzeReceipt);
   const create = useServerFn(createExpense);
+  const update = useServerFn(updateExpense);
+  const isEdit = !!expense;
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [merchant, setMerchant] = useState("");
@@ -392,6 +407,22 @@ function AddExpenseDialog({
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [receiptPath, setReceiptPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open && expense) {
+      setAmount(String(expense.amount).replace(".", ","));
+      setDescription(expense.description ?? "");
+      setMerchant(expense.merchant ?? "");
+      setCategoryId(expense.category_id ?? "");
+      setSpentAt(expense.spent_at);
+      setIsCard(expense.is_credit_card);
+      setCardId(expense.card_id ?? "");
+      setReceiptPath(expense.receipt_url ?? null);
+    } else if (open && !expense) {
+      reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, expense?.id]);
 
   const reset = () => {
     setAmount(""); setDescription(""); setMerchant(""); setCategoryId("");
@@ -471,19 +502,23 @@ function AddExpenseDialog({
     }
     setSaving(true);
     try {
-      await create({
-        data: {
-          amount: value,
-          category_id: categoryId || null,
-          description: description || null,
-          merchant: merchant || null,
-          spent_at: spentAt,
-          is_credit_card: isCard,
-          card_id: isCard ? (cardId || null) : null,
-          receipt_url: receiptPath,
-        },
-      });
-      toast.success("Gasto lançado!");
+      const payload = {
+        amount: value,
+        category_id: categoryId || null,
+        description: description || null,
+        merchant: merchant || null,
+        spent_at: spentAt,
+        is_credit_card: isCard,
+        card_id: isCard ? (cardId || null) : null,
+        receipt_url: receiptPath,
+      };
+      if (isEdit && expense) {
+        await update({ data: { ...payload, id: expense.id } });
+        toast.success("Gasto atualizado!");
+      } else {
+        await create({ data: payload });
+        toast.success("Gasto lançado!");
+      }
       reset();
       onSaved();
     } catch (e: any) {
@@ -497,7 +532,7 @@ function AddExpenseDialog({
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Novo gasto</DialogTitle>
+          <DialogTitle>{isEdit ? "Editar gasto" : "Novo gasto"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -598,7 +633,7 @@ function AddExpenseDialog({
           </div>
 
           <Button className="w-full" onClick={handleSave} disabled={saving}>
-            {saving ? "Salvando..." : "Salvar gasto"}
+            {saving ? "Salvando..." : isEdit ? "Salvar alterações" : "Salvar gasto"}
           </Button>
         </div>
       </DialogContent>
@@ -756,5 +791,58 @@ function SettingsDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function UsdTicker() {
+  const [rate, setRate] = useState<number | null>(null);
+  const [pct, setPct] = useState<number | null>(null);
+
+  const fetchRate = async () => {
+    try {
+      const res = await fetch("https://economia.awesomeapi.com.br/json/last/USD-BRL");
+      const json = await res.json();
+      const q = json.USDBRL;
+      if (q) {
+        setRate(Number(q.bid));
+        setPct(Number(q.pctChange));
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  useEffect(() => {
+    fetchRate();
+    const id = setInterval(fetchRate, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (rate === null) {
+    return (
+      <div className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground">
+        <DollarSign className="h-3 w-3" />
+        <span>—</span>
+      </div>
+    );
+  }
+  const up = (pct ?? 0) >= 0;
+  return (
+    <button
+      onClick={fetchRate}
+      title="Cotação USD/BRL (clique para atualizar)"
+      className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs hover:bg-accent transition"
+    >
+      <DollarSign className="h-3 w-3 text-primary" />
+      <span className="font-medium tabular-nums">
+        {rate.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+      </span>
+      {pct !== null && (
+        <span className={`tabular-nums ${up ? "text-emerald-600" : "text-red-600"}`}>
+          {up ? "▲" : "▼"}
+          {Math.abs(pct).toFixed(2)}%
+        </span>
+      )}
+    </button>
   );
 }
