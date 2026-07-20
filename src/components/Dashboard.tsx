@@ -340,6 +340,11 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="year" className="space-y-4">
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" onClick={() => exportExcel("year")}>
+                <Download className="h-3.5 w-3.5 mr-1" /> Exportar ano (Excel)
+              </Button>
+            </div>
             <Card className="p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-medium">Total {year}: {fmt(yearTotal)}</h3>
