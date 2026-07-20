@@ -510,8 +510,8 @@ function AddExpenseDialog({
         description: description || null,
         merchant: merchant || null,
         spent_at: spentAt,
-        is_credit_card: isCard,
-        card_id: isCard ? (cardId || null) : null,
+        is_credit_card: paymentMethod === "credit",
+        card_id: paymentMethod === "cash" ? null : (cardId || null),
         receipt_url: receiptPath,
       };
       if (isEdit && expense) {
