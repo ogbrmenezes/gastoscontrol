@@ -611,12 +611,16 @@ function SettingsDialog({
   onOpenChange,
   budgets,
   settings,
+  cards,
+  onCardsChanged,
   onSaved,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   budgets: Budget[];
   settings: Settings;
+  cards: Card_[];
+  onCardsChanged: () => void;
   onSaved: () => void;
 }) {
   const [monthly, setMonthly] = useState("");
