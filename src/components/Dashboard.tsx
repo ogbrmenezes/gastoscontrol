@@ -341,12 +341,16 @@ export default function Dashboard() {
       </div>
 
       <AddExpenseDialog
-        open={showAdd}
-        onOpenChange={setShowAdd}
+        open={showAdd || !!editingExpense}
+        expense={editingExpense}
+        onOpenChange={(v) => {
+          if (!v) { setShowAdd(false); setEditingExpense(null); }
+        }}
         categories={categories}
         cards={cards}
         onSaved={() => {
           setShowAdd(false);
+          setEditingExpense(null);
           reload();
         }}
         onCardsChanged={reload}
