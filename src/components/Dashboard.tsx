@@ -596,6 +596,77 @@ function AddExpenseDialog({
     }
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeCandidates = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"];
+      const mimeType =
+        mimeCandidates.find((m) => (window as any).MediaRecorder?.isTypeSupported?.(m)) || "";
+      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
+        const type = (mr.mimeType || "audio/webm").toLowerCase();
+        const format: "m4a" | "webm" | "ogg" | "mp3" | "wav" = type.includes("mp4")
+          ? "m4a"
+          : type.includes("ogg")
+            ? "ogg"
+            : type.includes("wav")
+              ? "wav"
+              : type.includes("mpeg")
+                ? "mp3"
+                : "webm";
+        setTranscribing(true);
+        try {
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve((r.result as string).split(",")[1]);
+            r.onerror = reject;
+            r.readAsDataURL(blob);
+          });
+          const result = await transcribe({
+            data: {
+              audioBase64: base64,
+              format,
+              categoryNames: categories.map((c) => c.name),
+            },
+          });
+          if (result.amount) setAmount(String(result.amount).replace(".", ","));
+          if (result.merchant) setMerchant(result.merchant);
+          if (result.description) setDescription(result.description);
+          if (result.spent_at) setSpentAt(result.spent_at);
+          if (result.payment_method) setPaymentMethod(result.payment_method);
+          if (result.suggested_category) {
+            const match = categories.find(
+              (c) => c.name.toLowerCase() === result.suggested_category!.toLowerCase(),
+            );
+            if (match) setCategoryId(match.id);
+          }
+          toast.success(
+            result.transcript ? `Ouvi: "${result.transcript}"` : "Áudio processado!",
+          );
+        } catch (err: any) {
+          toast.error(err.message ?? "Falha ao processar áudio");
+        } finally {
+          setTranscribing(false);
+        }
+      };
+      mr.start();
+      setRecorder(mr);
+      setRecording(true);
+    } catch (e: any) {
+      toast.error("Não consegui acessar o microfone. Verifique a permissão.");
+    }
+  };
+
+  const stopRecording = () => {
+    recorder?.stop();
+    setRecorder(null);
+  };
+
   const handleSave = async () => {
     const value = parseFloat(amount.replace(",", "."));
     if (!value || value <= 0) {
