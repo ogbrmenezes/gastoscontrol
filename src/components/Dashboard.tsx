@@ -79,6 +79,7 @@ export default function Dashboard() {
   const [showAdd, setShowAdd] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPayslip, setShowPayslip] = useState(false);
   const [year, setYear] = useState(new Date().getFullYear());
 
   const reload = async () => {
