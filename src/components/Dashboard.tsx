@@ -503,6 +503,10 @@ function AddExpenseDialog({
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [receiptPath, setReceiptPath] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
+  const transcribe = useServerFn(transcribeExpense);
 
   useEffect(() => {
     if (open && expense) {
