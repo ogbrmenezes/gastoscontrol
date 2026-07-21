@@ -462,6 +462,8 @@ export default function Dashboard() {
           reload();
         }}
       />
+
+      <PayslipDialog open={showPayslip} onOpenChange={setShowPayslip} />
     </div>
   );
 }
