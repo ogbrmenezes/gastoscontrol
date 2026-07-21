@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable as _lovable } from "@/integrations/lovable";
 import { useServerFn } from "@tanstack/react-start";
-import { analyzeReceipt, createExpense, updateExpense } from "@/lib/expenses.functions";
+import { analyzeReceipt, createExpense, updateExpense, transcribeExpense, analyzePayslip } from "@/lib/expenses.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
