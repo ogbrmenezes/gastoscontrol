@@ -152,6 +152,48 @@ export type Database = {
           },
         ]
       }
+      payslips: {
+        Row: {
+          created_at: string
+          deductions: number | null
+          employer: string | null
+          file_name: string | null
+          file_url: string | null
+          gross: number | null
+          id: string
+          net: number | null
+          period: string | null
+          summary: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          deductions?: number | null
+          employer?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          gross?: number | null
+          id?: string
+          net?: number | null
+          period?: string | null
+          summary?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          deductions?: number | null
+          employer?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          gross?: number | null
+          id?: string
+          net?: number | null
+          period?: string | null
+          summary?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_settings: {
         Row: {
           alert_threshold_pct: number

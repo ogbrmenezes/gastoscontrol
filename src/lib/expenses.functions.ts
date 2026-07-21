@@ -8,6 +8,159 @@ const AnalyzeInput = z.object({
   categoryNames: z.array(z.string()).default([]),
 });
 
+const TranscribeInput = z.object({
+  audioBase64: z.string().min(20),
+  format: z.enum(["webm", "mp3", "wav", "m4a", "ogg", "aac", "flac"]).default("webm"),
+  categoryNames: z.array(z.string()).default([]),
+});
+
+const PayslipInput = z.object({
+  fileBase64: z.string().min(20),
+  fileName: z.string().min(1).max(200),
+  mimeType: z.string().default("application/pdf"),
+  filePath: z.string().nullable().optional(),
+});
+
+export const transcribeExpense = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v: unknown) => TranscribeInput.parse(v))
+  .handler(async ({ data }) => {
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("LOVABLE_API_KEY ausente");
+    const today = new Date().toISOString().slice(0, 10);
+    const sys = `Você extrai dados de um GASTO falado em português do Brasil. Data de hoje: ${today}.
+Retorne SOMENTE JSON válido com estas chaves:
+{"amount": number, "merchant": string|null, "spent_at": "YYYY-MM-DD"|null, "suggested_category": string|null, "description": string|null, "payment_method": "cash"|"debit"|"credit"|null, "transcript": string}
+- amount: valor em reais (ponto decimal). Se a pessoa disser "cinquenta reais" -> 50.
+- payment_method: "cash" para dinheiro/pix, "debit" para débito, "credit" para crédito/cartão de crédito. null se não mencionar.
+- spent_at: se não disser data, use ${today}.
+- suggested_category: escolha exatamente uma das disponíveis (${data.categoryNames.join(", ") || "nenhuma"}) ou null.
+- transcript: transcrição literal do áudio.
+Nada fora do JSON.`;
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: sys },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Transcreva o áudio e extraia os dados do gasto." },
+              { type: "input_audio", input_audio: { data: data.audioBase64, format: data.format } },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`AI ${res.status}: ${body}`);
+    }
+    const json = await res.json();
+    const raw = json.choices?.[0]?.message?.content ?? "{}";
+    try {
+      const p = JSON.parse(raw);
+      return {
+        amount: typeof p.amount === "number" ? p.amount : Number(p.amount) || 0,
+        merchant: p.merchant ?? null,
+        spent_at: p.spent_at ?? null,
+        suggested_category: p.suggested_category ?? null,
+        description: p.description ?? null,
+        payment_method: (p.payment_method ?? null) as "cash" | "debit" | "credit" | null,
+        transcript: p.transcript ?? null,
+      };
+    } catch {
+      return {
+        amount: 0,
+        merchant: null,
+        spent_at: null,
+        suggested_category: null,
+        description: null,
+        payment_method: null,
+        transcript: null,
+      };
+    }
+  });
+
+export const analyzePayslip = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v: unknown) => PayslipInput.parse(v))
+  .handler(async ({ data, context }) => {
+    const key = process.env.LOVABLE_API_KEY;
+    if (!key) throw new Error("LOVABLE_API_KEY ausente");
+    const sys = `Você extrai dados de um HOLERITE / contracheque brasileiro. Retorne SOMENTE JSON:
+{"period": "YYYY-MM"|null, "employer": string|null, "gross": number|null, "net": number|null, "deductions": number|null, "summary": string}
+- gross: salário bruto (total de vencimentos) em reais.
+- net: salário líquido (valor a receber).
+- deductions: total de descontos.
+- period: mês de referência.
+- summary: resumo curto em 1-2 frases em português.`;
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: sys },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Extraia os dados deste holerite." },
+              {
+                type: "file",
+                file: {
+                  filename: data.fileName,
+                  file_data: `data:${data.mimeType};base64,${data.fileBase64}`,
+                },
+              },
+            ],
+          },
+        ],
+        response_format: { type: "json_object" },
+      }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`AI ${res.status}: ${body}`);
+    }
+    const json = await res.json();
+    const raw = json.choices?.[0]?.message?.content ?? "{}";
+    let p: any = {};
+    try {
+      p = JSON.parse(raw);
+    } catch {
+      p = {};
+    }
+    const { supabase, userId } = context;
+    const { data: inserted, error } = await (supabase.from("payslips") as any)
+      .insert({
+        user_id: userId,
+        period: p.period ?? null,
+        employer: p.employer ?? null,
+        gross: p.gross ?? null,
+        net: p.net ?? null,
+        deductions: p.deductions ?? null,
+        summary: p.summary ?? null,
+        file_name: data.fileName,
+        file_url: data.filePath ?? null,
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    return {
+      id: inserted.id,
+      period: p.period ?? null,
+      employer: p.employer ?? null,
+      gross: p.gross ?? null,
+      net: p.net ?? null,
+      deductions: p.deductions ?? null,
+      summary: p.summary ?? null,
+    };
+  });
+
 export const analyzeReceipt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((v: unknown) => AnalyzeInput.parse(v))

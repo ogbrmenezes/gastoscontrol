@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable as _lovable } from "@/integrations/lovable";
 import { useServerFn } from "@tanstack/react-start";
-import { analyzeReceipt, createExpense, updateExpense } from "@/lib/expenses.functions";
+import { analyzeReceipt, createExpense, updateExpense, transcribeExpense, analyzePayslip } from "@/lib/expenses.functions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,9 @@ import {
   Pencil,
   DollarSign,
   Download,
+  Mic,
+  Square,
+  FileText,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -76,6 +79,7 @@ export default function Dashboard() {
   const [showAdd, setShowAdd] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPayslip, setShowPayslip] = useState(false);
   const [year, setYear] = useState(new Date().getFullYear());
 
   const reload = async () => {
@@ -244,6 +248,9 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-1">
             <UsdTicker />
+            <Button variant="ghost" size="icon" onClick={() => setShowPayslip(true)} title="Holerite">
+              <FileText className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)}>
               <SettingsIcon className="h-4 w-4" />
             </Button>
@@ -455,6 +462,8 @@ export default function Dashboard() {
           reload();
         }}
       />
+
+      <PayslipDialog open={showPayslip} onOpenChange={setShowPayslip} />
     </div>
   );
 }
@@ -494,6 +503,10 @@ function AddExpenseDialog({
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [receiptPath, setReceiptPath] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
+  const transcribe = useServerFn(transcribeExpense);
 
   useEffect(() => {
     if (open && expense) {
@@ -583,6 +596,77 @@ function AddExpenseDialog({
     }
   };
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeCandidates = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"];
+      const mimeType =
+        mimeCandidates.find((m) => (window as any).MediaRecorder?.isTypeSupported?.(m)) || "";
+      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
+        const type = (mr.mimeType || "audio/webm").toLowerCase();
+        const format: "m4a" | "webm" | "ogg" | "mp3" | "wav" = type.includes("mp4")
+          ? "m4a"
+          : type.includes("ogg")
+            ? "ogg"
+            : type.includes("wav")
+              ? "wav"
+              : type.includes("mpeg")
+                ? "mp3"
+                : "webm";
+        setTranscribing(true);
+        try {
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve((r.result as string).split(",")[1]);
+            r.onerror = reject;
+            r.readAsDataURL(blob);
+          });
+          const result = await transcribe({
+            data: {
+              audioBase64: base64,
+              format,
+              categoryNames: categories.map((c) => c.name),
+            },
+          });
+          if (result.amount) setAmount(String(result.amount).replace(".", ","));
+          if (result.merchant) setMerchant(result.merchant);
+          if (result.description) setDescription(result.description);
+          if (result.spent_at) setSpentAt(result.spent_at);
+          if (result.payment_method) setPaymentMethod(result.payment_method);
+          if (result.suggested_category) {
+            const match = categories.find(
+              (c) => c.name.toLowerCase() === result.suggested_category!.toLowerCase(),
+            );
+            if (match) setCategoryId(match.id);
+          }
+          toast.success(
+            result.transcript ? `Ouvi: "${result.transcript}"` : "Áudio processado!",
+          );
+        } catch (err: any) {
+          toast.error(err.message ?? "Falha ao processar áudio");
+        } finally {
+          setTranscribing(false);
+        }
+      };
+      mr.start();
+      setRecorder(mr);
+      setRecording(true);
+    } catch (e: any) {
+      toast.error("Não consegui acessar o microfone. Verifique a permissão.");
+    }
+  };
+
+  const stopRecording = () => {
+    recorder?.stop();
+    setRecorder(null);
+  };
+
   const handleSave = async () => {
     const value = parseFloat(amount.replace(",", "."));
     if (!value || value <= 0) {
@@ -645,6 +729,32 @@ function AddExpenseDialog({
               )}
             </div>
           </label>
+
+          <button
+            type="button"
+            onClick={recording ? stopRecording : startRecording}
+            disabled={transcribing}
+            className={`w-full border-2 border-dashed rounded-lg p-4 text-center transition ${
+              recording
+                ? "border-red-500 bg-red-500/10 text-red-600 animate-pulse"
+                : "border-primary/40 hover:bg-primary/5 text-primary"
+            }`}
+          >
+            {transcribing ? (
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" /> Processando áudio...
+              </div>
+            ) : recording ? (
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <Square className="h-4 w-4 fill-current" /> Toque para parar de gravar
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <Mic className="h-4 w-4" /> Falar o gasto (ex: "gastei 45 reais no Uber")
+              </div>
+            )}
+          </button>
+
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1 col-span-2">
@@ -952,5 +1062,185 @@ function UsdTicker() {
         </span>
       )}
     </button>
+  );
+}
+
+type PayslipRow = {
+  id: string;
+  period: string | null;
+  employer: string | null;
+  gross: number | null;
+  net: number | null;
+  deductions: number | null;
+  summary: string | null;
+  file_name: string | null;
+  created_at: string;
+};
+
+function PayslipDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const analyze = useServerFn(analyzePayslip);
+  const [list, setList] = useState<PayslipRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const { data } = await (supabase.from as any)("payslips")
+      .select("*")
+      .order("created_at", { ascending: false });
+    setList(
+      ((data ?? []) as any[]).map((r) => ({
+        ...r,
+        gross: r.gross !== null ? Number(r.gross) : null,
+        net: r.net !== null ? Number(r.net) : null,
+        deductions: r.deductions !== null ? Number(r.deductions) : null,
+      })),
+    );
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (open) load();
+  }, [open]);
+
+  const handleFile = async (file: File) => {
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast.error("Envie um arquivo PDF");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+      if (!uid) throw new Error("Sem sessão");
+      const path = `${uid}/${Date.now()}-${file.name}`;
+      const up = await supabase.storage.from("payslips").upload(path, file);
+      if (up.error) throw up.error;
+
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve((r.result as string).split(",")[1]);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+      await analyze({
+        data: {
+          fileBase64: base64,
+          fileName: file.name,
+          mimeType: file.type || "application/pdf",
+          filePath: path,
+        },
+      });
+      toast.success("Holerite analisado!");
+      await load();
+    } catch (e: any) {
+      toast.error(e.message ?? "Falha ao analisar holerite");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removePayslip = async (row: PayslipRow) => {
+    if (!confirm("Remover este holerite?")) return;
+    if (row.file_name) {
+      // best-effort: try to delete stored file if we saved path
+      try {
+        const { data } = await (supabase.from as any)("payslips")
+          .select("file_url")
+          .eq("id", row.id)
+          .maybeSingle();
+        if (data?.file_url) await supabase.storage.from("payslips").remove([data.file_url]);
+      } catch {
+        /* ignore */
+      }
+    }
+    await (supabase.from as any)("payslips").delete().eq("id", row.id);
+    load();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Holerites</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <label className="block">
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+            />
+            <div className="border-2 border-dashed border-primary/40 rounded-lg p-4 text-center hover:bg-primary/5 cursor-pointer transition">
+              {uploading ? (
+                <div className="flex items-center justify-center gap-2 text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Analisando holerite...
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2 text-sm text-primary">
+                  <FileText className="h-4 w-4" /> Anexar holerite em PDF
+                </div>
+              )}
+            </div>
+          </label>
+
+          <div className="space-y-2">
+            {loading && (
+              <div className="text-center text-xs text-muted-foreground">
+                <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+              </div>
+            )}
+            {!loading && list.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-4">
+                Nenhum holerite enviado ainda.
+              </p>
+            )}
+            {list.map((p) => (
+              <Card key={p.id} className="p-3 space-y-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {p.period ?? "Sem período"} {p.employer ? `· ${p.employer}` : ""}
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">{p.file_name}</div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => removePayslip(p)}>
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs pt-1">
+                  <div>
+                    <div className="text-muted-foreground">Bruto</div>
+                    <div className="font-semibold">{p.gross !== null ? fmt(p.gross) : "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Descontos</div>
+                    <div className="font-semibold text-red-600">
+                      {p.deductions !== null ? fmt(p.deductions) : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Líquido</div>
+                    <div className="font-semibold text-emerald-600">
+                      {p.net !== null ? fmt(p.net) : "—"}
+                    </div>
+                  </div>
+                </div>
+                {p.summary && (
+                  <p className="text-xs text-muted-foreground pt-1">{p.summary}</p>
+                )}
+              </Card>
+            ))}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
