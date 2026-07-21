@@ -27,6 +27,9 @@ import {
   Pencil,
   DollarSign,
   Download,
+  Mic,
+  Square,
+  FileText,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
