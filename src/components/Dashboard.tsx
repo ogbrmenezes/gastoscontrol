@@ -248,6 +248,9 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-1">
             <UsdTicker />
+            <Button variant="ghost" size="icon" onClick={() => setShowPayslip(true)} title="Holerite">
+              <FileText className="h-4 w-4" />
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)}>
               <SettingsIcon className="h-4 w-4" />
             </Button>
