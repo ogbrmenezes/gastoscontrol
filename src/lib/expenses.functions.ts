@@ -22,7 +22,7 @@ const PayslipInput = z.object({
 });
 
 // -------- Google Gemini API helper (direct, using GEMINI_API_KEY) --------
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-flash-latest";
 
 type GeminiPart =
   | { text: string }
