@@ -730,6 +730,32 @@ function AddExpenseDialog({
             </div>
           </label>
 
+          <button
+            type="button"
+            onClick={recording ? stopRecording : startRecording}
+            disabled={transcribing}
+            className={`w-full border-2 border-dashed rounded-lg p-4 text-center transition ${
+              recording
+                ? "border-red-500 bg-red-500/10 text-red-600 animate-pulse"
+                : "border-primary/40 hover:bg-primary/5 text-primary"
+            }`}
+          >
+            {transcribing ? (
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" /> Processando áudio...
+              </div>
+            ) : recording ? (
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <Square className="h-4 w-4 fill-current" /> Toque para parar de gravar
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-2 text-sm">
+                <Mic className="h-4 w-4" /> Falar o gasto (ex: "gastei 45 reais no Uber")
+              </div>
+            )}
+          </button>
+
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1 col-span-2">
               <Label>Valor (R$)</Label>
