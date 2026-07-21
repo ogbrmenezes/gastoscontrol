@@ -21,12 +21,51 @@ const PayslipInput = z.object({
   filePath: z.string().nullable().optional(),
 });
 
+// -------- Google Gemini API helper (direct, using GEMINI_API_KEY) --------
+const GEMINI_MODEL = "gemini-2.5-flash";
+
+type GeminiPart =
+  | { text: string }
+  | { inline_data: { mime_type: string; data: string } };
+
+async function callGemini(system: string, parts: GeminiPart[]): Promise<string> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY ausente. Configure a chave nas configurações do projeto.");
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: "user", parts }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+      },
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Gemini ${res.status}: ${body}`);
+  }
+  const json = await res.json();
+  const text =
+    json?.candidates?.[0]?.content?.parts
+      ?.map((p: any) => p.text ?? "")
+      .join("") ?? "{}";
+  return text || "{}";
+}
+
+function normalizeMime(mime: string, fallback: string): string {
+  if (!mime) return fallback;
+  // strip codecs (ex: "audio/webm;codecs=opus")
+  return mime.split(";")[0].trim() || fallback;
+}
+
 export const transcribeExpense = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((v: unknown) => TranscribeInput.parse(v))
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY ausente");
     const today = new Date().toISOString().slice(0, 10);
     const sys = `Você extrai dados de um GASTO falado em português do Brasil. Data de hoje: ${today}.
 Retorne SOMENTE JSON válido com estas chaves:
@@ -37,30 +76,22 @@ Retorne SOMENTE JSON válido com estas chaves:
 - suggested_category: escolha exatamente uma das disponíveis (${data.categoryNames.join(", ") || "nenhuma"}) ou null.
 - transcript: transcrição literal do áudio.
 Nada fora do JSON.`;
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: sys },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Transcreva o áudio e extraia os dados do gasto." },
-              { type: "input_audio", input_audio: { data: data.audioBase64, format: data.format } },
-            ],
-          },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`AI ${res.status}: ${body}`);
-    }
-    const json = await res.json();
-    const raw = json.choices?.[0]?.message?.content ?? "{}";
+
+    const mimeMap: Record<string, string> = {
+      webm: "audio/webm",
+      mp3: "audio/mp3",
+      wav: "audio/wav",
+      m4a: "audio/mp4",
+      ogg: "audio/ogg",
+      aac: "audio/aac",
+      flac: "audio/flac",
+    };
+    const mime = mimeMap[data.format] ?? "audio/webm";
+
+    const raw = await callGemini(sys, [
+      { text: "Transcreva o áudio e extraia os dados do gasto." },
+      { inline_data: { mime_type: mime, data: data.audioBase64 } },
+    ]);
     try {
       const p = JSON.parse(raw);
       return {
@@ -89,8 +120,6 @@ export const analyzePayslip = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((v: unknown) => PayslipInput.parse(v))
   .handler(async ({ data, context }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY ausente");
     const sys = `Você extrai dados de um HOLERITE / contracheque brasileiro. Retorne SOMENTE JSON:
 {"period": "YYYY-MM"|null, "employer": string|null, "gross": number|null, "net": number|null, "deductions": number|null, "summary": string}
 - gross: salário bruto (total de vencimentos) em reais.
@@ -98,36 +127,12 @@ export const analyzePayslip = createServerFn({ method: "POST" })
 - deductions: total de descontos.
 - period: mês de referência.
 - summary: resumo curto em 1-2 frases em português.`;
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: sys },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Extraia os dados deste holerite." },
-              {
-                type: "file",
-                file: {
-                  filename: data.fileName,
-                  file_data: `data:${data.mimeType};base64,${data.fileBase64}`,
-                },
-              },
-            ],
-          },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`AI ${res.status}: ${body}`);
-    }
-    const json = await res.json();
-    const raw = json.choices?.[0]?.message?.content ?? "{}";
+
+    const mime = normalizeMime(data.mimeType, "application/pdf");
+    const raw = await callGemini(sys, [
+      { text: "Extraia os dados deste holerite." },
+      { inline_data: { mime_type: mime, data: data.fileBase64 } },
+    ]);
     let p: any = {};
     try {
       p = JSON.parse(raw);
@@ -165,9 +170,6 @@ export const analyzeReceipt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((v: unknown) => AnalyzeInput.parse(v))
   .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("LOVABLE_API_KEY ausente");
-
     const sys = `Você é um extrator de dados de comprovantes/cupons/telas de pagamento em português do Brasil.
 Retorne SOMENTE um JSON válido com as chaves:
 {"amount": number, "merchant": string|null, "spent_at": "YYYY-MM-DD"|null, "suggested_category": string|null, "description": string|null}
@@ -179,37 +181,11 @@ Retorne SOMENTE um JSON válido com as chaves:
 Categorias disponíveis: ${data.categoryNames.join(", ") || "nenhuma"}.
 Nada de texto fora do JSON.`;
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: sys },
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Extraia os dados deste comprovante." },
-              {
-                type: "image_url",
-                image_url: { url: `data:${data.mimeType};base64,${data.imageBase64}` },
-              },
-            ],
-          },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
-
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`AI ${res.status}: ${body}`);
-    }
-    const json = await res.json();
-    const raw = json.choices?.[0]?.message?.content ?? "{}";
+    const mime = normalizeMime(data.mimeType, "image/jpeg");
+    const raw = await callGemini(sys, [
+      { text: "Extraia os dados deste comprovante." },
+      { inline_data: { mime_type: mime, data: data.imageBase64 } },
+    ]);
     try {
       const parsed = JSON.parse(raw);
       return {
