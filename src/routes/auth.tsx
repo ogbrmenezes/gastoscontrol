@@ -10,6 +10,22 @@ import { toast } from "sonner";
 import { Wallet } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
+  head: () => ({
+    meta: [
+      { title: "Entrar — Meus Gastos" },
+      {
+        name: "description",
+        content: "Acesse sua conta do Meus Gastos para lançar despesas, acompanhar cartões e ver seus dashboards financeiros.",
+      },
+      { property: "og:title", content: "Entrar — Meus Gastos" },
+      {
+        property: "og:description",
+        content: "Acesse sua conta do Meus Gastos para lançar despesas, acompanhar cartões e ver seus dashboards financeiros.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+    ],
+  }),
   component: AuthPage,
 });
 
