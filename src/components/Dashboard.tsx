@@ -719,9 +719,7 @@ function AddExpenseDialog({
   const [saving, setSaving] = useState(false);
   const [receiptPath, setReceiptPath] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
-  const [recorder, setRecorder] = useState<MediaRecorder | null>(null);
-  const transcribe = useServerFn(transcribeExpense);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     if (open && expense) {
@@ -813,73 +811,66 @@ function AddExpenseDialog({
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeCandidates = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"];
-      const mimeType =
-        mimeCandidates.find((m) => (window as any).MediaRecorder?.isTypeSupported?.(m)) || "";
-      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      const chunks: Blob[] = [];
-      mr.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-      mr.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
+      const Recognition = getSpeechRecognition();
+      if (!Recognition) {
+        toast.error("Seu navegador não liberou ditado por voz. No iPhone, use o Safari atualizado ou preencha manualmente.");
+        return;
+      }
+
+      let heardText = "";
+      const recognition = new Recognition();
+      recognition.lang = "pt-BR";
+      recognition.interimResults = false;
+      recognition.continuous = false;
+      recognition.maxAlternatives = 1;
+      recognition.onstart = () => setRecording(true);
+      recognition.onerror = (event) => {
         setRecording(false);
-        const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
-        const type = (mr.mimeType || "audio/webm").toLowerCase();
-        const format: "m4a" | "webm" | "ogg" | "mp3" | "wav" = type.includes("mp4")
-          ? "m4a"
-          : type.includes("ogg")
-            ? "ogg"
-            : type.includes("wav")
-              ? "wav"
-              : type.includes("mpeg")
-                ? "mp3"
-                : "webm";
-        setTranscribing(true);
-        try {
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const r = new FileReader();
-            r.onload = () => resolve((r.result as string).split(",")[1]);
-            r.onerror = reject;
-            r.readAsDataURL(blob);
-          });
-          const result = await transcribe({
-            data: {
-              audioBase64: base64,
-              format,
-              categoryNames: categories.map((c) => c.name),
-            },
-          });
-          if (result.amount) setAmount(String(result.amount).replace(".", ","));
-          if (result.merchant) setMerchant(result.merchant);
-          if (result.description) setDescription(result.description);
-          if (result.spent_at) setSpentAt(result.spent_at);
-          if (result.payment_method) setPaymentMethod(result.payment_method);
-          if (result.suggested_category) {
-            const match = categories.find(
-              (c) => c.name.toLowerCase() === result.suggested_category!.toLowerCase(),
-            );
-            if (match) setCategoryId(match.id);
-          }
-          toast.success(
-            result.transcript ? `Ouvi: "${result.transcript}"` : "Áudio processado!",
-          );
-        } catch (err: any) {
-          toast.error(err.message ?? "Falha ao processar áudio");
-        } finally {
-          setTranscribing(false);
+        recognitionRef.current = null;
+        if (event.error === "not-allowed") {
+          toast.error("Permissão do microfone negada. Libere o microfone no navegador.");
+          return;
         }
+        toast.error("Não consegui ouvir. Tente falar de novo mais perto do microfone.");
       };
-      mr.start();
-      setRecorder(mr);
-      setRecording(true);
+      recognition.onresult = (event) => {
+        const transcripts: string[] = [];
+        for (let i = 0; i < event.results.length; i += 1) {
+          const transcript = event.results[i]?.[0]?.transcript;
+          if (transcript) transcripts.push(transcript);
+        }
+        heardText = transcripts.join(" ").trim();
+        if (!heardText) return;
+
+        const result = parseVoiceExpense(heardText, categories.map((c) => c.name));
+        if (result.amount) setAmount(String(result.amount).replace(".", ","));
+        if (result.merchant) setMerchant(result.merchant);
+        if (result.description) setDescription(result.description);
+        if (result.spent_at) setSpentAt(result.spent_at);
+        if (result.payment_method) setPaymentMethod(result.payment_method);
+        if (result.suggested_category) {
+          const match = categories.find(
+            (c) => stripAccents(c.name) === stripAccents(result.suggested_category ?? ""),
+          );
+          if (match) setCategoryId(match.id);
+        }
+        toast.success(`Ouvi: "${heardText}"`);
+      };
+      recognition.onend = () => {
+        setRecording(false);
+        recognitionRef.current = null;
+        if (!heardText) toast.info("Não peguei nenhum áudio. Toque e fale o gasto novamente.");
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
     } catch (e: any) {
       toast.error("Não consegui acessar o microfone. Verifique a permissão.");
     }
   };
 
   const stopRecording = () => {
-    recorder?.stop();
-    setRecorder(null);
+    recognitionRef.current?.stop();
   };
 
   const handleSave = async () => {
@@ -945,21 +936,17 @@ function AddExpenseDialog({
             </div>
           </label>
 
-          <button
+          <Button
             type="button"
             onClick={recording ? stopRecording : startRecording}
-            disabled={transcribing}
-            className={`w-full border-2 border-dashed rounded-lg p-4 text-center transition ${
+            variant="outline"
+            className={`h-auto w-full border-2 border-dashed p-4 text-center transition ${
               recording
                 ? "border-red-500 bg-red-500/10 text-red-600 animate-pulse"
                 : "border-primary/40 hover:bg-primary/5 text-primary"
             }`}
           >
-            {transcribing ? (
-              <div className="flex items-center justify-center gap-2 text-sm">
-                <Loader2 className="h-4 w-4 animate-spin" /> Processando áudio...
-              </div>
-            ) : recording ? (
+            {recording ? (
               <div className="flex items-center justify-center gap-2 text-sm">
                 <Square className="h-4 w-4 fill-current" /> Toque para parar de gravar
               </div>
@@ -968,7 +955,7 @@ function AddExpenseDialog({
                 <Mic className="h-4 w-4" /> Falar o gasto (ex: "gastei 45 reais no Uber")
               </div>
             )}
-          </button>
+          </Button>
 
 
           <div className="grid grid-cols-2 gap-3">
