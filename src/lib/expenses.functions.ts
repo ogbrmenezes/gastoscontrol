@@ -8,12 +8,6 @@ const AnalyzeInput = z.object({
   categoryNames: z.array(z.string()).default([]),
 });
 
-const TranscribeInput = z.object({
-  audioBase64: z.string().min(20),
-  format: z.enum(["webm", "mp3", "wav", "m4a", "ogg", "aac", "flac"]).default("webm"),
-  categoryNames: z.array(z.string()).default([]),
-});
-
 const PayslipInput = z.object({
   fileBase64: z.string().min(20),
   fileName: z.string().min(1).max(200),
@@ -61,60 +55,6 @@ function normalizeMime(mime: string, fallback: string): string {
   // strip codecs (ex: "audio/webm;codecs=opus")
   return mime.split(";")[0].trim() || fallback;
 }
-
-export const transcribeExpense = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((v: unknown) => TranscribeInput.parse(v))
-  .handler(async ({ data }) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const sys = `Você extrai dados de um GASTO falado em português do Brasil. Data de hoje: ${today}.
-Retorne SOMENTE JSON válido com estas chaves:
-{"amount": number, "merchant": string|null, "spent_at": "YYYY-MM-DD"|null, "suggested_category": string|null, "description": string|null, "payment_method": "cash"|"debit"|"credit"|null, "transcript": string}
-- amount: valor em reais (ponto decimal). Se a pessoa disser "cinquenta reais" -> 50.
-- payment_method: "cash" para dinheiro/pix, "debit" para débito, "credit" para crédito/cartão de crédito. null se não mencionar.
-- spent_at: se não disser data, use ${today}.
-- suggested_category: escolha exatamente uma das disponíveis (${data.categoryNames.join(", ") || "nenhuma"}) ou null.
-- transcript: transcrição literal do áudio.
-Nada fora do JSON.`;
-
-    const mimeMap: Record<string, string> = {
-      webm: "audio/webm",
-      mp3: "audio/mp3",
-      wav: "audio/wav",
-      m4a: "audio/mp4",
-      ogg: "audio/ogg",
-      aac: "audio/aac",
-      flac: "audio/flac",
-    };
-    const mime = mimeMap[data.format] ?? "audio/webm";
-
-    const raw = await callGemini(sys, [
-      { text: "Transcreva o áudio e extraia os dados do gasto." },
-      { inline_data: { mime_type: mime, data: data.audioBase64 } },
-    ]);
-    try {
-      const p = JSON.parse(raw);
-      return {
-        amount: typeof p.amount === "number" ? p.amount : Number(p.amount) || 0,
-        merchant: p.merchant ?? null,
-        spent_at: p.spent_at ?? null,
-        suggested_category: p.suggested_category ?? null,
-        description: p.description ?? null,
-        payment_method: (p.payment_method ?? null) as "cash" | "debit" | "credit" | null,
-        transcript: p.transcript ?? null,
-      };
-    } catch {
-      return {
-        amount: 0,
-        merchant: null,
-        spent_at: null,
-        suggested_category: null,
-        description: null,
-        payment_method: null,
-        transcript: null,
-      };
-    }
-  });
 
 export const analyzePayslip = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
