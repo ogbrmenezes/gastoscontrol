@@ -157,6 +157,19 @@ const fmt = (n: number) =>
 const stripAccents = (value: string) =>
   value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
+// Datas sempre no fuso local (evita "voltar 1 dia" por causa de UTC)
+const toLocalISODate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const todayISO = () => toLocalISODate(new Date());
+
+const parseISODate = (value: string) => {
+  const [y, m, d] = value.slice(0, 10).split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
+};
+
+const formatDateBR = (value: string) => parseISODate(value).toLocaleDateString("pt-BR");
+
 function getSpeechRecognition(): SpeechRecognitionConstructor | null {
   if (typeof window === "undefined") return null;
   const win = window as typeof window & {
@@ -206,11 +219,11 @@ function extractSpokenDate(text: string): string | null {
   const date = new Date(now);
   if (/\bontem\b/.test(normalized)) {
     date.setDate(date.getDate() - 1);
-    return date.toISOString().slice(0, 10);
+    return toLocalISODate(date);
   }
   if (/\banteontem\b/.test(normalized)) {
     date.setDate(date.getDate() - 2);
-    return date.toISOString().slice(0, 10);
+    return toLocalISODate(date);
   }
   const explicit = normalized.match(/\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/);
   if (explicit) {
@@ -223,7 +236,7 @@ function extractSpokenDate(text: string): string | null {
       : String(now.getFullYear());
     return `${year}-${month}-${day}`;
   }
-  return new Date().toISOString().slice(0, 10);
+  return todayISO();
 }
 
 function extractPaymentMethod(text: string): VoicePaymentMethod {
@@ -399,7 +412,7 @@ export default function Dashboard() {
             ? "Débito"
             : "Dinheiro/Pix";
         return {
-          Data: new Date(e.spent_at).toLocaleDateString("pt-BR"),
+          Data: formatDateBR(e.spent_at),
           Descrição: e.description ?? "",
           Estabelecimento: e.merchant ?? "",
           Categoria: cat?.name ?? "Sem categoria",
@@ -611,7 +624,7 @@ export default function Dashboard() {
                       {e.description || e.merchant || cat?.name || "Gasto"}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(e.spent_at).toLocaleDateString("pt-BR")} · {cat?.name ?? "—"}
+                      {formatDateBR(e.spent_at)} · {cat?.name ?? "—"}
                       {e.is_credit_card
                         ? ` · Crédito${card ? ` ${card.name}${card.last4 ? ` •${card.last4}` : ""}` : ""}`
                         : e.card_id
@@ -708,7 +721,7 @@ function AddExpenseDialog({
   const [description, setDescription] = useState("");
   const [merchant, setMerchant] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
-  const [spentAt, setSpentAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [spentAt, setSpentAt] = useState(() => todayISO());
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "debit" | "credit">("cash");
   const [cardId, setCardId] = useState<string>("");
   const [showNewCard, setShowNewCard] = useState(false);
@@ -741,7 +754,7 @@ function AddExpenseDialog({
 
   const reset = () => {
     setAmount(""); setDescription(""); setMerchant(""); setCategoryId("");
-    setSpentAt(new Date().toISOString().slice(0, 10)); setPaymentMethod("cash"); setReceiptPath(null);
+    setSpentAt(todayISO()); setPaymentMethod("cash"); setReceiptPath(null);
     setCardId(""); setShowNewCard(false); setNewCardName(""); setNewCardBank(""); setNewCardLast4("");
   };
 
