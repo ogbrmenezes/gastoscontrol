@@ -1244,8 +1244,9 @@ function SettingsDialog({
   const save = async () => {
     setSaving(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user!.id;
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      const uid = userData?.user?.id;
+      if (userErr || !uid) throw new Error("Sessão expirada. Entre novamente para salvar.");
 
       const budgetRows: any[] = [];
       const m = parseFloat(monthly.replace(",", "."));
@@ -1253,23 +1254,31 @@ function SettingsDialog({
       if (!isNaN(m) && m > 0) budgetRows.push({ user_id: uid, budget_type: "monthly", limit_amount: m });
       if (!isNaN(c) && c > 0) budgetRows.push({ user_id: uid, budget_type: "credit_card", limit_amount: c });
       if (budgetRows.length) {
-        await supabase.from("budgets").upsert(budgetRows, { onConflict: "user_id,budget_type" });
+        const { error } = await supabase
+          .from("budgets")
+          .upsert(budgetRows, { onConflict: "user_id,budget_type" });
+        if (error) throw error;
       }
-      await supabase.from("user_settings").upsert({
-        user_id: uid,
-        zapier_webhook_url: webhook || null,
-        alert_threshold_pct: Math.min(100, Math.max(1, parseInt(threshold) || 80)),
-        whatsapp_number: normalizePhone(phone),
-        notify_each_expense: notifyEach,
-      } as any);
+      const { error: setErr } = await supabase.from("user_settings").upsert(
+        {
+          user_id: uid,
+          zapier_webhook_url: webhook.trim() || null,
+          alert_threshold_pct: Math.min(100, Math.max(1, parseInt(threshold) || 80)),
+          whatsapp_number: normalizePhone(phone),
+          notify_each_expense: notifyEach,
+        } as any,
+        { onConflict: "user_id" },
+      );
+      if (setErr) throw setErr;
       toast.success("Configurações salvas");
       onSaved();
     } catch (e: any) {
-      toast.error(e.message ?? "Erro");
+      toast.error(e?.message ?? "Erro ao salvar configurações");
     } finally {
       setSaving(false);
     }
   };
+
 
   return (
 
