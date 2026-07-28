@@ -1101,7 +1101,77 @@ function AddExpenseDialog({
   );
 }
 
+function NotificationSettings() {
+  const [perm, setPerm] = useState<string>("default");
+
+  useEffect(() => {
+    setPerm(notificationPermission());
+  }, []);
+
+  const granted = perm === "granted";
+  const denied = perm === "denied";
+  const unsupported = perm === "unsupported";
+
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <Label className="text-sm">Notificações no celular</Label>
+      <p className="text-xs text-muted-foreground">
+        {unsupported
+          ? "Seu navegador não suporta notificações do sistema — os avisos aparecem dentro do app."
+          : granted
+            ? "Ativadas! Você recebe um pop-up a cada gasto e nos alertas de limite."
+            : denied
+              ? "Bloqueadas no navegador. Libere nas permissões do site para receber os avisos na tela."
+              : "Ative para receber o aviso na tela do celular, mesmo com o app em segundo plano."}
+      </p>
+      <div className="flex gap-2">
+        {!granted && !unsupported && !denied && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={async () => {
+              const p = await requestNotificationPermission(true);
+              setPerm(p);
+              if (p === "granted") {
+                showAppNotification({
+                  type: "test",
+                  title: "🔔 Notificações ativadas",
+                  message: "Você será avisado a cada gasto e quando chegar perto do limite.",
+                  level: "info",
+                });
+              } else {
+                toast.error("Permissão não concedida");
+              }
+            }}
+          >
+            Ativar notificações
+          </Button>
+        )}
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="flex-1"
+          onClick={() =>
+            showAppNotification({
+              type: "test",
+              title: "🔔 Notificação de teste",
+              message: "É assim que os avisos de gasto e de limite vão aparecer.",
+              level: "info",
+            })
+          }
+        >
+          Testar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SettingsDialog({
+
   open,
   onOpenChange,
   budgets,
