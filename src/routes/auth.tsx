@@ -34,7 +34,15 @@ function AuthPage() {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const normalizePhone = (raw: string): string | null => {
+    const digits = (raw ?? "").replace(/\D/g, "");
+    if (!digits) return null;
+    if (digits.length <= 11) return `55${digits.replace(/^0+/, "")}`;
+    return digits;
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -47,12 +55,29 @@ function AuthPage() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const whatsapp = normalizePhone(phone);
+        if (!whatsapp || whatsapp.length < 12) {
+          toast.error("Informe seu WhatsApp com DDD (ex: 11 99999-9999)");
+          setLoading(false);
+          return;
+        }
+        const { data: signUpData, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: { whatsapp_number: whatsapp },
+          },
         });
         if (error) throw error;
+        const uid = signUpData.user?.id;
+        if (uid) {
+          await supabase.from("user_settings").upsert({
+            user_id: uid,
+            whatsapp_number: whatsapp,
+            notify_each_expense: true,
+          } as any);
+        }
         toast.success("Conta criada! Você já está dentro.");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -103,6 +128,23 @@ function AuthPage() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
+          {mode === "signup" && (
+            <div className="space-y-2">
+              <Label htmlFor="phone">WhatsApp (com DDD)</Label>
+              <Input
+                id="phone"
+                type="tel"
+                inputMode="tel"
+                required
+                placeholder="(11) 99999-9999"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Usamos só para te avisar dos gastos e do limite da fatura.
+              </p>
+            </div>
+          )}
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? "Aguarde..." : mode === "signin" ? "Entrar" : "Criar conta"}
           </Button>

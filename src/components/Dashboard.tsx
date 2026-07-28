@@ -61,7 +61,21 @@ type Expense = {
   receipt_url: string | null;
 };
 type Budget = { id: string; budget_type: "monthly" | "credit_card"; limit_amount: number };
-type Settings = { zapier_webhook_url: string | null; alert_threshold_pct: number };
+type Settings = {
+  zapier_webhook_url: string | null;
+  alert_threshold_pct: number;
+  whatsapp_number: string | null;
+  notify_each_expense: boolean;
+};
+
+// Normaliza o número para o formato internacional (WhatsApp): 5511999999999
+function normalizePhone(raw: string): string | null {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.length <= 11) return `55${digits.replace(/^0+/, "")}`;
+  return digits;
+}
+
 
 type VoicePaymentMethod = "cash" | "debit" | "credit" | null;
 type VoiceExpenseDraft = {
@@ -302,6 +316,8 @@ export default function Dashboard() {
   const [settings, setSettings] = useState<Settings>({
     zapier_webhook_url: null,
     alert_threshold_pct: 80,
+    whatsapp_number: null,
+    notify_each_expense: true,
   });
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -328,7 +344,13 @@ export default function Dashboard() {
     setCards((cd.data ?? []) as any);
     setExpenses(((e.data ?? []) as any).map((x: any) => ({ ...x, amount: Number(x.amount) })));
     setBudgets(((b.data ?? []) as any).map((x: any) => ({ ...x, limit_amount: Number(x.limit_amount) })));
-    if (s.data) setSettings({ zapier_webhook_url: s.data.zapier_webhook_url, alert_threshold_pct: s.data.alert_threshold_pct });
+    if (s.data)
+      setSettings({
+        zapier_webhook_url: s.data.zapier_webhook_url,
+        alert_threshold_pct: s.data.alert_threshold_pct,
+        whatsapp_number: (s.data as any).whatsapp_number ?? null,
+        notify_each_expense: (s.data as any).notify_each_expense ?? true,
+      });
     setLoading(false);
   };
 
@@ -1095,6 +1117,9 @@ function SettingsDialog({
   const [card, setCard] = useState("");
   const [webhook, setWebhook] = useState("");
   const [threshold, setThreshold] = useState("80");
+  const [phone, setPhone] = useState("");
+  const [notifyEach, setNotifyEach] = useState(true);
+  const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newCardName, setNewCardName] = useState("");
   const [newCardBank, setNewCardBank] = useState("");
@@ -1130,6 +1155,8 @@ function SettingsDialog({
     setCard(String(budgets.find((b) => b.budget_type === "credit_card")?.limit_amount ?? ""));
     setWebhook(settings.zapier_webhook_url ?? "");
     setThreshold(String(settings.alert_threshold_pct ?? 80));
+    setPhone(settings.whatsapp_number ?? "");
+    setNotifyEach(settings.notify_each_expense ?? true);
   }, [budgets, settings, open]);
 
   const save = async () => {
@@ -1150,7 +1177,9 @@ function SettingsDialog({
         user_id: uid,
         zapier_webhook_url: webhook || null,
         alert_threshold_pct: Math.min(100, Math.max(1, parseInt(threshold) || 80)),
-      });
+        whatsapp_number: normalizePhone(phone),
+        notify_each_expense: notifyEach,
+      } as any);
       toast.success("Configurações salvas");
       onSaved();
     } catch (e: any) {
@@ -1208,6 +1237,27 @@ function SettingsDialog({
             <Input inputMode="numeric" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
           </div>
           <div className="space-y-1">
+            <Label>Seu WhatsApp (com DDD)</Label>
+            <Input
+              inputMode="tel"
+              placeholder="(11) 99999-9999"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              As mensagens serão enviadas para {normalizePhone(phone) ? `+${normalizePhone(phone)}` : "este número"}.
+            </p>
+          </div>
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="pr-3">
+              <Label className="text-sm">Avisar a cada gasto lançado</Label>
+              <p className="text-xs text-muted-foreground">
+                Recebe no WhatsApp um resumo de cada lançamento.
+              </p>
+            </div>
+            <Switch checked={notifyEach} onCheckedChange={setNotifyEach} />
+          </div>
+          <div className="space-y-1">
             <Label>Webhook do Zapier (para WhatsApp)</Label>
             <Input
               placeholder="https://hooks.zapier.com/hooks/catch/..."
@@ -1215,8 +1265,44 @@ function SettingsDialog({
               onChange={(e) => setWebhook(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Crie um Zap com trigger "Webhooks → Catch Hook" e ação "Send WhatsApp Message". Cole a URL aqui.
+              Crie um Zap com trigger "Webhooks → Catch Hook" e ação "WhatsApp / Twilio → Send Message",
+              usando os campos <strong>phone</strong> e <strong>message</strong> que o app envia.
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              disabled={testing}
+              onClick={async () => {
+                const url = webhook.trim();
+                const to = normalizePhone(phone);
+                if (!url) { toast.error("Cole a URL do webhook primeiro"); return; }
+                if (!to) { toast.error("Informe seu número de WhatsApp"); return; }
+                setTesting(true);
+                try {
+                  await fetch(url, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      phone: to,
+                      whatsapp: `+${to}`,
+                      type: "test",
+                      message: "✅ Teste do Meus Gastos: suas notificações no WhatsApp estão funcionando!",
+                      timestamp: new Date().toISOString(),
+                    }),
+                  });
+                  toast.success("Teste enviado! Confira seu WhatsApp.");
+                } catch {
+                  toast.error("Não consegui chamar o webhook");
+                } finally {
+                  setTesting(false);
+                }
+              }}
+            >
+              {testing ? "Enviando..." : "Enviar teste no WhatsApp"}
+            </Button>
           </div>
           <Button className="w-full" onClick={save} disabled={saving}>
             {saving ? "Salvando..." : "Salvar"}
