@@ -335,7 +335,13 @@ export default function Dashboard() {
     setCards((cd.data ?? []) as any);
     setExpenses(((e.data ?? []) as any).map((x: any) => ({ ...x, amount: Number(x.amount) })));
     setBudgets(((b.data ?? []) as any).map((x: any) => ({ ...x, limit_amount: Number(x.limit_amount) })));
-    if (s.data) setSettings({ zapier_webhook_url: s.data.zapier_webhook_url, alert_threshold_pct: s.data.alert_threshold_pct });
+    if (s.data)
+      setSettings({
+        zapier_webhook_url: s.data.zapier_webhook_url,
+        alert_threshold_pct: s.data.alert_threshold_pct,
+        whatsapp_number: (s.data as any).whatsapp_number ?? null,
+        notify_each_expense: (s.data as any).notify_each_expense ?? true,
+      });
     setLoading(false);
   };
 
