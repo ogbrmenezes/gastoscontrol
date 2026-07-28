@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import { requestNotificationPermission, showAppNotifications, showAppNotification, notificationPermission } from "@/lib/app-notify";
+
 import {
   Camera,
   Plus,
@@ -358,6 +360,13 @@ export default function Dashboard() {
     reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { void requestNotificationPermission(); }, 3000);
+    return () => clearTimeout(t);
+  }, []);
+
+
 
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -930,9 +939,12 @@ function AddExpenseDialog({
         await update({ data: { ...payload, id: expense.id } });
         toast.success("Gasto atualizado!");
       } else {
-        await create({ data: payload });
-        toast.success("Gasto lançado!");
+        await requestNotificationPermission();
+        const res: any = await create({ data: payload });
+        if (res?.notifications?.length) showAppNotifications(res.notifications);
+        else toast.success("Gasto lançado!");
       }
+
       reset();
       onSaved();
     } catch (e: any) {
@@ -1096,7 +1108,77 @@ function AddExpenseDialog({
   );
 }
 
+function NotificationSettings() {
+  const [perm, setPerm] = useState<string>("default");
+
+  useEffect(() => {
+    setPerm(notificationPermission());
+  }, []);
+
+  const granted = perm === "granted";
+  const denied = perm === "denied";
+  const unsupported = perm === "unsupported";
+
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <Label className="text-sm">Notificações no celular</Label>
+      <p className="text-xs text-muted-foreground">
+        {unsupported
+          ? "Seu navegador não suporta notificações do sistema — os avisos aparecem dentro do app."
+          : granted
+            ? "Ativadas! Você recebe um pop-up a cada gasto e nos alertas de limite."
+            : denied
+              ? "Bloqueadas no navegador. Libere nas permissões do site para receber os avisos na tela."
+              : "Ative para receber o aviso na tela do celular, mesmo com o app em segundo plano."}
+      </p>
+      <div className="flex gap-2">
+        {!granted && !unsupported && !denied && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="flex-1"
+            onClick={async () => {
+              const p = await requestNotificationPermission(true);
+              setPerm(p);
+              if (p === "granted") {
+                showAppNotification({
+                  type: "test",
+                  title: "🔔 Notificações ativadas",
+                  message: "Você será avisado a cada gasto e quando chegar perto do limite.",
+                  level: "info",
+                });
+              } else {
+                toast.error("Permissão não concedida");
+              }
+            }}
+          >
+            Ativar notificações
+          </Button>
+        )}
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="flex-1"
+          onClick={() =>
+            showAppNotification({
+              type: "test",
+              title: "🔔 Notificação de teste",
+              message: "É assim que os avisos de gasto e de limite vão aparecer.",
+              level: "info",
+            })
+          }
+        >
+          Testar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function SettingsDialog({
+
   open,
   onOpenChange,
   budgets,
@@ -1190,6 +1272,7 @@ function SettingsDialog({
   };
 
   return (
+
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
@@ -1236,6 +1319,7 @@ function SettingsDialog({
             <Label>Avisar quando atingir (%)</Label>
             <Input inputMode="numeric" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
           </div>
+          <NotificationSettings />
           <div className="space-y-1">
             <Label>Seu WhatsApp (com DDD)</Label>
             <Input
@@ -1245,18 +1329,19 @@ function SettingsDialog({
               onChange={(e) => setPhone(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              As mensagens serão enviadas para {normalizePhone(phone) ? `+${normalizePhone(phone)}` : "este número"}.
+              Opcional — só é usado se você configurar o webhook abaixo.
             </p>
           </div>
           <div className="flex items-center justify-between rounded-md border p-3">
             <div className="pr-3">
               <Label className="text-sm">Avisar a cada gasto lançado</Label>
               <p className="text-xs text-muted-foreground">
-                Recebe no WhatsApp um resumo de cada lançamento.
+                Mostra a notificação com o resumo sempre que você lançar um gasto.
               </p>
             </div>
             <Switch checked={notifyEach} onCheckedChange={setNotifyEach} />
           </div>
+
           <div className="space-y-1">
             <Label>Webhook do Zapier (para WhatsApp)</Label>
             <Input
