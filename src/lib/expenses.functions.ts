@@ -199,7 +199,8 @@ export const createExpense = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    // Notificações no WhatsApp (via webhook do Zapier) + checagem de orçamento
+    // Notificações (app/push) + checagem de orçamento; webhook opcional
+    const notifications: { type: string; title: string; message: string; level: "info" | "warning" | "danger" }[] = [];
     try {
       const monthStart = data.spent_at.slice(0, 7) + "-01";
       const [{ data: settings }, { data: budgets }, { data: monthSum }, { data: cardSum }] =
@@ -225,56 +226,58 @@ export const createExpense = createServerFn({ method: "POST" })
       const notifyEach: boolean = s.notify_each_expense ?? true;
       const threshold = (s.alert_threshold_pct ?? 80) / 100;
 
+      const brl = (n: number) =>
+        `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const monthTotal = (monthSum ?? []).reduce((acc, r: any) => acc + Number(r.amount), 0);
+      const cardTotal = (cardSum ?? []).reduce((acc, r: any) => acc + Number(r.amount), 0);
+      const monthly = budgets?.find((b: any) => b.budget_type === "monthly");
+      const card = budgets?.find((b: any) => b.budget_type === "credit_card");
+
+      if (notifyEach) {
+        const [y, m, d] = data.spent_at.split("-");
+        const label = `${d}/${m}/${y}`;
+        const forma = data.is_credit_card ? "crédito" : "débito/dinheiro";
+        const onde = data.merchant ? ` em ${data.merchant}` : "";
+        const desc = data.description ? `\n📝 ${data.description}` : "";
+        let msg = `${brl(data.amount)}${onde} (${forma}) — ${label}${desc}\n📊 Total do mês: ${brl(monthTotal)}`;
+        if (monthly) {
+          const restante = Number(monthly.limit_amount) - monthTotal;
+          msg += ` de ${brl(Number(monthly.limit_amount))}\n${
+            restante >= 0 ? `✅ Ainda pode gastar ${brl(restante)}` : `🚨 Você passou ${brl(Math.abs(restante))} do limite!`
+          }`;
+        }
+        notifications.push({ type: "expense_created", title: "💸 Gasto lançado", message: msg, level: "info" });
+      }
+
+      if (monthly && monthTotal >= Number(monthly.limit_amount) * threshold) {
+        const limit = Number(monthly.limit_amount);
+        const pct = Math.round((monthTotal / limit) * 100);
+        notifications.push({
+          type: "monthly_budget_alert",
+          title: pct >= 100 ? "🚨 Limite mensal estourado" : "⚠️ Limite mensal chegando",
+          message:
+            pct >= 100
+              ? `Você já gastou ${brl(monthTotal)} de ${brl(limit)} (${pct}%).`
+              : `Você já usou ${pct}% do limite mensal — ${brl(monthTotal)} de ${brl(limit)}. Restam ${brl(limit - monthTotal)}.`,
+          level: pct >= 100 ? "danger" : "warning",
+        });
+      }
+
+      if (card && cardTotal >= Number(card.limit_amount) * threshold) {
+        const limit = Number(card.limit_amount);
+        const pct = Math.round((cardTotal / limit) * 100);
+        notifications.push({
+          type: "credit_card_alert",
+          title: pct >= 100 ? "🚨 Fatura do cartão estourou" : "💳 Fatura do cartão chegando ao limite",
+          message:
+            pct >= 100
+              ? `Sua fatura está em ${brl(cardTotal)} de ${brl(limit)} (${pct}%).`
+              : `Sua fatura está em ${brl(cardTotal)} de ${brl(limit)} (${pct}%). Está ficando sem limite!`,
+          level: pct >= 100 ? "danger" : "warning",
+        });
+      }
+
       if (webhook) {
-        const brl = (n: number) =>
-          `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-        const monthTotal = (monthSum ?? []).reduce((acc, r: any) => acc + Number(r.amount), 0);
-        const cardTotal = (cardSum ?? []).reduce((acc, r: any) => acc + Number(r.amount), 0);
-        const monthly = budgets?.find((b: any) => b.budget_type === "monthly");
-        const card = budgets?.find((b: any) => b.budget_type === "credit_card");
-
-        const notifications: { type: string; message: string }[] = [];
-
-        if (notifyEach) {
-          const [y, m, d] = data.spent_at.split("-");
-          const label = `${d}/${m}/${y}`;
-          const forma = data.is_credit_card ? "crédito" : "débito/dinheiro";
-          const onde = data.merchant ? ` em ${data.merchant}` : "";
-          const desc = data.description ? `\n📝 ${data.description}` : "";
-          let msg = `💸 Novo gasto lançado\n${brl(data.amount)}${onde} (${forma}) — ${label}${desc}\n\n📊 Total do mês: ${brl(monthTotal)}`;
-          if (monthly) {
-            const restante = Number(monthly.limit_amount) - monthTotal;
-            msg += ` de ${brl(Number(monthly.limit_amount))}\n${
-              restante >= 0 ? `✅ Ainda pode gastar ${brl(restante)}` : `🚨 Você passou ${brl(Math.abs(restante))} do limite!`
-            }`;
-          }
-          notifications.push({ type: "expense_created", message: msg });
-        }
-
-        if (monthly && monthTotal >= Number(monthly.limit_amount) * threshold) {
-          const limit = Number(monthly.limit_amount);
-          const pct = Math.round((monthTotal / limit) * 100);
-          notifications.push({
-            type: "monthly_budget_alert",
-            message:
-              pct >= 100
-                ? `🚨 Você ESTOUROU seu limite mensal! Já gastou ${brl(monthTotal)} de ${brl(limit)} (${pct}%).`
-                : `⚠️ Atenção: você já usou ${pct}% do seu limite mensal — ${brl(monthTotal)} de ${brl(limit)}. Restam ${brl(limit - monthTotal)}.`,
-          });
-        }
-
-        if (card && cardTotal >= Number(card.limit_amount) * threshold) {
-          const limit = Number(card.limit_amount);
-          const pct = Math.round((cardTotal / limit) * 100);
-          notifications.push({
-            type: "credit_card_alert",
-            message:
-              pct >= 100
-                ? `🚨 Sua fatura do cartão passou do limite: ${brl(cardTotal)} de ${brl(limit)} (${pct}%).`
-                : `💳 Sua fatura do cartão está em ${brl(cardTotal)} de ${brl(limit)} (${pct}%). Está ficando sem limite!`,
-          });
-        }
-
         for (const n of notifications) {
           await fetch(webhook, {
             method: "POST",
@@ -283,7 +286,7 @@ export const createExpense = createServerFn({ method: "POST" })
               phone,
               whatsapp: phone ? `+${phone}` : null,
               type: n.type,
-              message: n.message,
+              message: `${n.title}\n${n.message}`,
               amount: data.amount,
               month_total: monthTotal,
               card_total: cardTotal,
@@ -296,5 +299,6 @@ export const createExpense = createServerFn({ method: "POST" })
       console.error("budget check failed", e);
     }
 
-    return { id: inserted.id };
+    return { id: inserted.id, notifications };
   });
+
