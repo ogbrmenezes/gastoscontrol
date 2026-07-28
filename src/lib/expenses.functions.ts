@@ -199,7 +199,7 @@ export const createExpense = createServerFn({ method: "POST" })
       .single();
     if (error) throw new Error(error.message);
 
-    // Check budgets and notify
+    // Notificações no WhatsApp (via webhook do Zapier) + checagem de orçamento
     try {
       const monthStart = data.spent_at.slice(0, 7) + "-01";
       const [{ data: settings }, { data: budgets }, { data: monthSum }, { data: cardSum }] =
@@ -219,35 +219,74 @@ export const createExpense = createServerFn({ method: "POST" })
             .gte("spent_at", monthStart),
         ]);
 
-      const webhook = settings?.zapier_webhook_url;
-      const threshold = (settings?.alert_threshold_pct ?? 80) / 100;
+      const s: any = settings ?? {};
+      const webhook: string | null = s.zapier_webhook_url ?? null;
+      const phone: string | null = s.whatsapp_number ?? null;
+      const notifyEach: boolean = s.notify_each_expense ?? true;
+      const threshold = (s.alert_threshold_pct ?? 80) / 100;
 
       if (webhook) {
-        const monthTotal = (monthSum ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
-        const cardTotal = (cardSum ?? []).reduce((s, r: any) => s + Number(r.amount), 0);
+        const brl = (n: number) =>
+          `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const monthTotal = (monthSum ?? []).reduce((acc, r: any) => acc + Number(r.amount), 0);
+        const cardTotal = (cardSum ?? []).reduce((acc, r: any) => acc + Number(r.amount), 0);
         const monthly = budgets?.find((b: any) => b.budget_type === "monthly");
         const card = budgets?.find((b: any) => b.budget_type === "credit_card");
 
-        const messages: string[] = [];
-        if (monthly && monthTotal >= Number(monthly.limit_amount) * threshold) {
-          const pct = Math.round((monthTotal / Number(monthly.limit_amount)) * 100);
-          messages.push(
-            `⚠️ Gastos do mês: R$ ${monthTotal.toFixed(2)} de R$ ${Number(monthly.limit_amount).toFixed(2)} (${pct}%)`,
-          );
-        }
-        if (card && cardTotal >= Number(card.limit_amount) * threshold) {
-          const pct = Math.round((cardTotal / Number(card.limit_amount)) * 100);
-          messages.push(
-            `💳 Fatura do cartão: R$ ${cardTotal.toFixed(2)} de R$ ${Number(card.limit_amount).toFixed(2)} (${pct}%)`,
-          );
+        const notifications: { type: string; message: string }[] = [];
+
+        if (notifyEach) {
+          const [y, m, d] = data.spent_at.split("-");
+          const label = `${d}/${m}/${y}`;
+          const forma = data.is_credit_card ? "crédito" : "débito/dinheiro";
+          const onde = data.merchant ? ` em ${data.merchant}` : "";
+          const desc = data.description ? `\n📝 ${data.description}` : "";
+          let msg = `💸 Novo gasto lançado\n${brl(data.amount)}${onde} (${forma}) — ${label}${desc}\n\n📊 Total do mês: ${brl(monthTotal)}`;
+          if (monthly) {
+            const restante = Number(monthly.limit_amount) - monthTotal;
+            msg += ` de ${brl(Number(monthly.limit_amount))}\n${
+              restante >= 0 ? `✅ Ainda pode gastar ${brl(restante)}` : `🚨 Você passou ${brl(Math.abs(restante))} do limite!`
+            }`;
+          }
+          notifications.push({ type: "expense_created", message: msg });
         }
 
-        for (const message of messages) {
+        if (monthly && monthTotal >= Number(monthly.limit_amount) * threshold) {
+          const limit = Number(monthly.limit_amount);
+          const pct = Math.round((monthTotal / limit) * 100);
+          notifications.push({
+            type: "monthly_budget_alert",
+            message:
+              pct >= 100
+                ? `🚨 Você ESTOUROU seu limite mensal! Já gastou ${brl(monthTotal)} de ${brl(limit)} (${pct}%).`
+                : `⚠️ Atenção: você já usou ${pct}% do seu limite mensal — ${brl(monthTotal)} de ${brl(limit)}. Restam ${brl(limit - monthTotal)}.`,
+          });
+        }
+
+        if (card && cardTotal >= Number(card.limit_amount) * threshold) {
+          const limit = Number(card.limit_amount);
+          const pct = Math.round((cardTotal / limit) * 100);
+          notifications.push({
+            type: "credit_card_alert",
+            message:
+              pct >= 100
+                ? `🚨 Sua fatura do cartão passou do limite: ${brl(cardTotal)} de ${brl(limit)} (${pct}%).`
+                : `💳 Sua fatura do cartão está em ${brl(cardTotal)} de ${brl(limit)} (${pct}%). Está ficando sem limite!`,
+          });
+        }
+
+        for (const n of notifications) {
           await fetch(webhook, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              message,
+              phone,
+              whatsapp: phone ? `+${phone}` : null,
+              type: n.type,
+              message: n.message,
+              amount: data.amount,
+              month_total: monthTotal,
+              card_total: cardTotal,
               timestamp: new Date().toISOString(),
             }),
           }).catch(() => {});
