@@ -1341,14 +1341,14 @@ function SettingsDialog({
               Opcional — só é usado se você configurar o webhook abaixo.
             </p>
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div className="pr-3">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border p-3">
+            <div className="min-w-0">
               <Label className="text-sm">Avisar a cada gasto lançado</Label>
               <p className="text-xs text-muted-foreground">
                 Mostra a notificação com o resumo sempre que você lançar um gasto.
               </p>
             </div>
-            <Switch checked={notifyEach} onCheckedChange={setNotifyEach} />
+            <Switch className="shrink-0" checked={notifyEach} onCheckedChange={setNotifyEach} />
           </div>
 
           <div className="space-y-1">
