@@ -199,24 +199,30 @@ export type Database = {
           alert_threshold_pct: number
           last_card_alert_at: string | null
           last_monthly_alert_at: string | null
+          notify_each_expense: boolean
           updated_at: string
           user_id: string
+          whatsapp_number: string | null
           zapier_webhook_url: string | null
         }
         Insert: {
           alert_threshold_pct?: number
           last_card_alert_at?: string | null
           last_monthly_alert_at?: string | null
+          notify_each_expense?: boolean
           updated_at?: string
           user_id: string
+          whatsapp_number?: string | null
           zapier_webhook_url?: string | null
         }
         Update: {
           alert_threshold_pct?: number
           last_card_alert_at?: string | null
           last_monthly_alert_at?: string | null
+          notify_each_expense?: boolean
           updated_at?: string
           user_id?: string
+          whatsapp_number?: string | null
           zapier_webhook_url?: string | null
         }
         Relationships: []
