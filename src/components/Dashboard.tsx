@@ -1244,8 +1244,9 @@ function SettingsDialog({
   const save = async () => {
     setSaving(true);
     try {
-      const { data: userData } = await supabase.auth.getUser();
-      const uid = userData.user!.id;
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      const uid = userData?.user?.id;
+      if (userErr || !uid) throw new Error("Sessão expirada. Entre novamente para salvar.");
 
       const budgetRows: any[] = [];
       const m = parseFloat(monthly.replace(",", "."));
@@ -1253,23 +1254,31 @@ function SettingsDialog({
       if (!isNaN(m) && m > 0) budgetRows.push({ user_id: uid, budget_type: "monthly", limit_amount: m });
       if (!isNaN(c) && c > 0) budgetRows.push({ user_id: uid, budget_type: "credit_card", limit_amount: c });
       if (budgetRows.length) {
-        await supabase.from("budgets").upsert(budgetRows, { onConflict: "user_id,budget_type" });
+        const { error } = await supabase
+          .from("budgets")
+          .upsert(budgetRows, { onConflict: "user_id,budget_type" });
+        if (error) throw error;
       }
-      await supabase.from("user_settings").upsert({
-        user_id: uid,
-        zapier_webhook_url: webhook || null,
-        alert_threshold_pct: Math.min(100, Math.max(1, parseInt(threshold) || 80)),
-        whatsapp_number: normalizePhone(phone),
-        notify_each_expense: notifyEach,
-      } as any);
+      const { error: setErr } = await supabase.from("user_settings").upsert(
+        {
+          user_id: uid,
+          zapier_webhook_url: webhook.trim() || null,
+          alert_threshold_pct: Math.min(100, Math.max(1, parseInt(threshold) || 80)),
+          whatsapp_number: normalizePhone(phone),
+          notify_each_expense: notifyEach,
+        } as any,
+        { onConflict: "user_id" },
+      );
+      if (setErr) throw setErr;
       toast.success("Configurações salvas");
       onSaved();
     } catch (e: any) {
-      toast.error(e.message ?? "Erro");
+      toast.error(e?.message ?? "Erro ao salvar configurações");
     } finally {
       setSaving(false);
     }
   };
+
 
   return (
 
@@ -1332,14 +1341,14 @@ function SettingsDialog({
               Opcional — só é usado se você configurar o webhook abaixo.
             </p>
           </div>
-          <div className="flex items-center justify-between rounded-md border p-3">
-            <div className="pr-3">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border p-3">
+            <div className="min-w-0">
               <Label className="text-sm">Avisar a cada gasto lançado</Label>
               <p className="text-xs text-muted-foreground">
                 Mostra a notificação com o resumo sempre que você lançar um gasto.
               </p>
             </div>
-            <Switch checked={notifyEach} onCheckedChange={setNotifyEach} />
+            <Switch className="shrink-0" checked={notifyEach} onCheckedChange={setNotifyEach} />
           </div>
 
           <div className="space-y-1">
@@ -1389,9 +1398,11 @@ function SettingsDialog({
               {testing ? "Enviando..." : "Enviar teste no WhatsApp"}
             </Button>
           </div>
-          <Button className="w-full" onClick={save} disabled={saving}>
-            {saving ? "Salvando..." : "Salvar"}
-          </Button>
+          <div className="sticky bottom-0 -mx-4 mt-2 border-t bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6">
+            <Button className="h-11 w-full text-base" onClick={save} disabled={saving}>
+              {saving ? "Salvando..." : "Salvar"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
