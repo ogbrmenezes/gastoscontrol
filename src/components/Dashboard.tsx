@@ -76,12 +76,6 @@ function normalizePhone(raw: string): string | null {
   return digits;
 }
 
-function formatPhoneDisplay(raw: string): string {
-  const d = (raw ?? "").replace(/\D/g, "").slice(0, 13);
-  if (d.length <= 11) return d;
-  const rest = d.slice(2);
-  return `+${d.slice(0, 2)} (${rest.slice(0, 2)}) ${rest.slice(2, 7)}${rest.length > 7 ? "-" + rest.slice(7) : ""}`;
-}
 
 type VoicePaymentMethod = "cash" | "debit" | "credit" | null;
 type VoiceExpenseDraft = {
