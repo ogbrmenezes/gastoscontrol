@@ -1241,6 +1241,7 @@ function SettingsDialog({
             <Label>Avisar quando atingir (%)</Label>
             <Input inputMode="numeric" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
           </div>
+          <NotificationSettings />
           <div className="space-y-1">
             <Label>Seu WhatsApp (com DDD)</Label>
             <Input
@@ -1250,18 +1251,19 @@ function SettingsDialog({
               onChange={(e) => setPhone(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              As mensagens serão enviadas para {normalizePhone(phone) ? `+${normalizePhone(phone)}` : "este número"}.
+              Opcional — só é usado se você configurar o webhook abaixo.
             </p>
           </div>
           <div className="flex items-center justify-between rounded-md border p-3">
             <div className="pr-3">
               <Label className="text-sm">Avisar a cada gasto lançado</Label>
               <p className="text-xs text-muted-foreground">
-                Recebe no WhatsApp um resumo de cada lançamento.
+                Mostra a notificação com o resumo sempre que você lançar um gasto.
               </p>
             </div>
             <Switch checked={notifyEach} onCheckedChange={setNotifyEach} />
           </div>
+
           <div className="space-y-1">
             <Label>Webhook do Zapier (para WhatsApp)</Label>
             <Input
