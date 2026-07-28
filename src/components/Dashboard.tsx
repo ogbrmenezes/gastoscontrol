@@ -361,6 +361,13 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year]);
 
+  useEffect(() => {
+    const t = setTimeout(() => { void requestNotificationPermission(); }, 3000);
+    return () => clearTimeout(t);
+  }, []);
+
+
+
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const monthExpenses = useMemo(
