@@ -307,6 +307,8 @@ export default function Dashboard() {
   const [settings, setSettings] = useState<Settings>({
     zapier_webhook_url: null,
     alert_threshold_pct: 80,
+    whatsapp_number: null,
+    notify_each_expense: true,
   });
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
