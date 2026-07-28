@@ -1243,6 +1243,27 @@ function SettingsDialog({
             <Input inputMode="numeric" value={threshold} onChange={(e) => setThreshold(e.target.value)} />
           </div>
           <div className="space-y-1">
+            <Label>Seu WhatsApp (com DDD)</Label>
+            <Input
+              inputMode="tel"
+              placeholder="(11) 99999-9999"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              As mensagens serão enviadas para {normalizePhone(phone) ? `+${normalizePhone(phone)}` : "este número"}.
+            </p>
+          </div>
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="pr-3">
+              <Label className="text-sm">Avisar a cada gasto lançado</Label>
+              <p className="text-xs text-muted-foreground">
+                Recebe no WhatsApp um resumo de cada lançamento.
+              </p>
+            </div>
+            <Switch checked={notifyEach} onCheckedChange={setNotifyEach} />
+          </div>
+          <div className="space-y-1">
             <Label>Webhook do Zapier (para WhatsApp)</Label>
             <Input
               placeholder="https://hooks.zapier.com/hooks/catch/..."
@@ -1250,8 +1271,44 @@ function SettingsDialog({
               onChange={(e) => setWebhook(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Crie um Zap com trigger "Webhooks → Catch Hook" e ação "Send WhatsApp Message". Cole a URL aqui.
+              Crie um Zap com trigger "Webhooks → Catch Hook" e ação "WhatsApp / Twilio → Send Message",
+              usando os campos <strong>phone</strong> e <strong>message</strong> que o app envia.
             </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              disabled={testing}
+              onClick={async () => {
+                const url = webhook.trim();
+                const to = normalizePhone(phone);
+                if (!url) { toast.error("Cole a URL do webhook primeiro"); return; }
+                if (!to) { toast.error("Informe seu número de WhatsApp"); return; }
+                setTesting(true);
+                try {
+                  await fetch(url, {
+                    method: "POST",
+                    mode: "no-cors",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      phone: to,
+                      whatsapp: `+${to}`,
+                      type: "test",
+                      message: "✅ Teste do Meus Gastos: suas notificações no WhatsApp estão funcionando!",
+                      timestamp: new Date().toISOString(),
+                    }),
+                  });
+                  toast.success("Teste enviado! Confira seu WhatsApp.");
+                } catch {
+                  toast.error("Não consegui chamar o webhook");
+                } finally {
+                  setTesting(false);
+                }
+              }}
+            >
+              {testing ? "Enviando..." : "Enviar teste no WhatsApp"}
+            </Button>
           </div>
           <Button className="w-full" onClick={save} disabled={saving}>
             {saving ? "Salvando..." : "Salvar"}
