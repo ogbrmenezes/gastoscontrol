@@ -68,6 +68,21 @@ type Settings = {
   notify_each_expense: boolean;
 };
 
+// Normaliza o número para o formato internacional (WhatsApp): 5511999999999
+function normalizePhone(raw: string): string | null {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  if (digits.length <= 11) return `55${digits.replace(/^0+/, "")}`;
+  return digits;
+}
+
+function formatPhoneDisplay(raw: string): string {
+  const d = (raw ?? "").replace(/\D/g, "").slice(0, 13);
+  if (d.length <= 11) return d;
+  const rest = d.slice(2);
+  return `+${d.slice(0, 2)} (${rest.slice(0, 2)}) ${rest.slice(2, 7)}${rest.length > 7 ? "-" + rest.slice(7) : ""}`;
+}
+
 type VoicePaymentMethod = "cash" | "debit" | "credit" | null;
 type VoiceExpenseDraft = {
   amount: number | null;
