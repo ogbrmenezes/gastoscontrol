@@ -61,7 +61,12 @@ type Expense = {
   receipt_url: string | null;
 };
 type Budget = { id: string; budget_type: "monthly" | "credit_card"; limit_amount: number };
-type Settings = { zapier_webhook_url: string | null; alert_threshold_pct: number };
+type Settings = {
+  zapier_webhook_url: string | null;
+  alert_threshold_pct: number;
+  whatsapp_number: string | null;
+  notify_each_expense: boolean;
+};
 
 type VoicePaymentMethod = "cash" | "debit" | "credit" | null;
 type VoiceExpenseDraft = {
