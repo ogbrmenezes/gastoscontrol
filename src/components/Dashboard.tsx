@@ -1398,9 +1398,11 @@ function SettingsDialog({
               {testing ? "Enviando..." : "Enviar teste no WhatsApp"}
             </Button>
           </div>
-          <Button className="w-full" onClick={save} disabled={saving}>
-            {saving ? "Salvando..." : "Salvar"}
-          </Button>
+          <div className="sticky bottom-0 -mx-4 mt-2 border-t bg-background px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6">
+            <Button className="h-11 w-full text-base" onClick={save} disabled={saving}>
+              {saving ? "Salvando..." : "Salvar"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
