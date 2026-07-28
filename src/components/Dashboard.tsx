@@ -1196,8 +1196,6 @@ function SettingsDialog({
 
   return (
 
-
-  return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
