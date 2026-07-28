@@ -1143,6 +1143,8 @@ function SettingsDialog({
     setCard(String(budgets.find((b) => b.budget_type === "credit_card")?.limit_amount ?? ""));
     setWebhook(settings.zapier_webhook_url ?? "");
     setThreshold(String(settings.alert_threshold_pct ?? 80));
+    setPhone(settings.whatsapp_number ?? "");
+    setNotifyEach(settings.notify_each_expense ?? true);
   }, [budgets, settings, open]);
 
   const save = async () => {
@@ -1163,7 +1165,9 @@ function SettingsDialog({
         user_id: uid,
         zapier_webhook_url: webhook || null,
         alert_threshold_pct: Math.min(100, Math.max(1, parseInt(threshold) || 80)),
-      });
+        whatsapp_number: normalizePhone(phone),
+        notify_each_expense: notifyEach,
+      } as any);
       toast.success("Configurações salvas");
       onSaved();
     } catch (e: any) {
