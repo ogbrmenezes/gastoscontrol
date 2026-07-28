@@ -1108,6 +1108,9 @@ function SettingsDialog({
   const [card, setCard] = useState("");
   const [webhook, setWebhook] = useState("");
   const [threshold, setThreshold] = useState("80");
+  const [phone, setPhone] = useState("");
+  const [notifyEach, setNotifyEach] = useState(true);
+  const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newCardName, setNewCardName] = useState("");
   const [newCardBank, setNewCardBank] = useState("");
