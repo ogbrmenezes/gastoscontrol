@@ -930,9 +930,12 @@ function AddExpenseDialog({
         await update({ data: { ...payload, id: expense.id } });
         toast.success("Gasto atualizado!");
       } else {
-        await create({ data: payload });
-        toast.success("Gasto lançado!");
+        await requestNotificationPermission();
+        const res: any = await create({ data: payload });
+        if (res?.notifications?.length) showAppNotifications(res.notifications);
+        else toast.success("Gasto lançado!");
       }
+
       reset();
       onSaved();
     } catch (e: any) {
