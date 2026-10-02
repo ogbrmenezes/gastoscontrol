@@ -10,6 +10,7 @@ import {
 import { type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { GanhosShortcut } from "@/components/GanhosShortcut";
+import { GanhosHint } from "@/components/GanhosHint";
 
 import appCss from "../styles.css?url";
 
@@ -119,6 +120,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <Outlet />
       <GanhosShortcut />
+      <GanhosHint />
       <Toaster richColors position="top-center" />
     </QueryClientProvider>
   );
