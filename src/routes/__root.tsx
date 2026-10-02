@@ -12,6 +12,7 @@ import { Toaster } from "sonner";
 import { GanhosShortcut } from "@/components/GanhosShortcut";
 import { GanhosHint } from "@/components/GanhosHint";
 import { PrivacyToggle } from "@/components/PrivacyToggle";
+import { VrPaymentEnhancer } from "@/components/VrPaymentEnhancer";
 
 import appCss from "../styles.css?url";
 
@@ -122,6 +123,7 @@ function RootComponent() {
       <Outlet />
       <GanhosShortcut />
       <GanhosHint />
+      <VrPaymentEnhancer />
       <div className="fixed right-4 top-16 z-[60] sm:right-6 sm:top-5">
         <PrivacyToggle />
       </div>
