@@ -11,6 +11,7 @@ import { type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { GanhosShortcut } from "@/components/GanhosShortcut";
 import { GanhosHint } from "@/components/GanhosHint";
+import { PrivacyToggle } from "@/components/PrivacyToggle";
 
 import appCss from "../styles.css?url";
 
@@ -121,6 +122,7 @@ function RootComponent() {
       <Outlet />
       <GanhosShortcut />
       <GanhosHint />
+      <PrivacyToggle />
       <Toaster richColors position="top-center" />
     </QueryClientProvider>
   );
