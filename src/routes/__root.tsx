@@ -13,6 +13,7 @@ import { GanhosShortcut } from "@/components/GanhosShortcut";
 import { GanhosHint } from "@/components/GanhosHint";
 import { PrivacyToggle } from "@/components/PrivacyToggle";
 import { VrPaymentEnhancer } from "@/components/VrPaymentEnhancer";
+import { VrDashboardSummary } from "@/components/VrDashboardSummary";
 
 import appCss from "../styles.css?url";
 
@@ -124,6 +125,7 @@ function RootComponent() {
       <GanhosShortcut />
       <GanhosHint />
       <VrPaymentEnhancer />
+      <VrDashboardSummary />
       <div className="fixed right-4 top-16 z-[60] sm:right-6 sm:top-5">
         <PrivacyToggle />
       </div>
