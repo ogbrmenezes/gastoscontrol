@@ -90,16 +90,6 @@ function AuthPage() {
     }
   };
 
-  const handleGoogle = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (error) toast.error(error.message ?? "Falha no login com Google");
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm p-6 space-y-6">
@@ -150,19 +140,6 @@ function AuthPage() {
             {loading ? "Aguarde..." : mode === "signin" ? "Entrar" : "Criar conta"}
           </Button>
         </form>
-
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">ou</span>
-          </div>
-        </div>
-
-        <Button variant="outline" className="w-full" onClick={handleGoogle}>
-          Continuar com Google
-        </Button>
 
         <p className="text-center text-sm text-muted-foreground">
           {mode === "signin" ? "Não tem conta?" : "Já tem conta?"}{" "}
