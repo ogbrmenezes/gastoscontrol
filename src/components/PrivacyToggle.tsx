@@ -2,17 +2,22 @@ import { useEffect, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 const STORAGE_KEY = "gastoscontrol-hide-values";
+const PRIVATE_CLASS = "gc-private-value";
 
-function shouldMask(text: string) {
-  const value = text.trim();
-  if (!value) return false;
-  return /R\$\s*[\d.,]+/.test(value) || /^\$\s*[\d.,]+/.test(value);
+function hasCurrency(text: string) {
+  return /R\$\s*[\d.,]+/.test(text) || /^\$\s*[\d.,]+/.test(text.trim());
 }
 
-function maskedText(text: string) {
-  return text
-    .replace(/R\$\s*[\d.,]+/g, "R$ ••••")
-    .replace(/^\$\s*[\d.,]+/, "$ ••••");
+function isSafeTarget(element: HTMLElement) {
+  if (["SCRIPT", "STYLE", "INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(element.tagName)) return false;
+  if (element.closest('[data-privacy-toggle="true"]')) return false;
+
+  const ownText = Array.from(element.childNodes)
+    .filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => node.textContent ?? "")
+    .join(" ");
+
+  return hasCurrency(ownText);
 }
 
 export function PrivacyToggle() {
@@ -33,45 +38,43 @@ export function PrivacyToggle() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const originals = new WeakMap<Text, string>();
-
-    const applyMask = () => {
-      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      let node = walker.nextNode() as Text | null;
-      while (node) {
-        const parent = node.parentElement;
-        if (
-          parent &&
-          !["SCRIPT", "STYLE", "TEXTAREA", "INPUT"].includes(parent.tagName) &&
-          !parent.closest('[data-privacy-toggle="true"]')
-        ) {
-          const original = originals.get(node) ?? node.nodeValue ?? "";
-          if (!originals.has(node) && shouldMask(original)) originals.set(node, original);
-
-          const saved = originals.get(node);
-          if (saved) node.nodeValue = hidden ? maskedText(saved) : saved;
-        }
-        node = walker.nextNode() as Text | null;
-      }
+    const scan = () => {
+      document.querySelectorAll<HTMLElement>("body *").forEach((element) => {
+        if (isSafeTarget(element)) element.classList.add(PRIVATE_CLASS);
+      });
     };
 
-    applyMask();
-    const observer = new MutationObserver(applyMask);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    scan();
+    const observer = new MutationObserver(scan);
+    observer.observe(document.body, { childList: true, subtree: true });
 
     return () => observer.disconnect();
-  }, [hidden]);
+  }, []);
 
   return (
-    <button
-      type="button"
-      data-privacy-toggle="true"
-      onClick={() => setHidden((value) => !value)}
-      className="fixed right-4 top-4 z-[70] inline-flex h-10 w-10 items-center justify-center rounded-full border bg-background/95 shadow-sm backdrop-blur sm:right-6 sm:top-5"
-      aria-label={hidden ? "Mostrar valores" : "Ocultar valores"}
-      title={hidden ? "Mostrar valores" : "Ocultar valores"}
-    >
-      {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-    </button>
+    <>
+      <style>{`
+        html[data-hide-values="true"] .${PRIVATE_CLASS} {
+          filter: blur(7px);
+          user-select: none;
+          transition: filter 160ms ease;
+        }
+        html[data-hide-values="false"] .${PRIVATE_CLASS} {
+          filter: none;
+          transition: filter 160ms ease;
+        }
+      `}</style>
+
+      <button
+        type="button"
+        data-privacy-toggle="true"
+        onClick={() => setHidden((value) => !value)}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground"
+        aria-label={hidden ? "Mostrar valores" : "Ocultar valores"}
+        title={hidden ? "Mostrar valores" : "Ocultar valores"}
+      >
+        {hidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </>
   );
 }
