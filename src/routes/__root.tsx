@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { type ReactNode } from "react";
 import { Toaster } from "sonner";
+import { GanhosShortcut } from "@/components/GanhosShortcut";
 
 import appCss from "../styles.css?url";
 
@@ -117,6 +118,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
+      <GanhosShortcut />
       <Toaster richColors position="top-center" />
     </QueryClientProvider>
   );
