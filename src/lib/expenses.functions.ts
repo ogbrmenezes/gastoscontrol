@@ -201,6 +201,21 @@ export const createExpense = createServerFn({ method: "POST" })
 
     // Notificações (app/push) + checagem de orçamento; webhook opcional
     const notifications: { type: string; title: string; message: string; level: "info" | "warning" | "danger" }[] = [];
+
+    // O botão VR marca o lançamento logo após a criação. A pequena espera evita
+    // disparar alerta pessoal antes dessa classificação terminar.
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    const { data: savedExpense } = await supabase
+      .from("expenses")
+      .select("payment_method")
+      .eq("id", inserted.id)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if ((savedExpense as any)?.payment_method === "vr") {
+      return { id: inserted.id, notifications };
+    }
+
     try {
       const monthStart = data.spent_at.slice(0, 7) + "-01";
       const [{ data: settings }, { data: budgets }, { data: monthSum }, { data: cardSum }] =
@@ -211,12 +226,14 @@ export const createExpense = createServerFn({ method: "POST" })
             .from("expenses")
             .select("amount")
             .eq("user_id", userId)
+            .neq("payment_method", "vr")
             .gte("spent_at", monthStart),
           supabase
             .from("expenses")
             .select("amount")
             .eq("user_id", userId)
             .eq("is_credit_card", true)
+            .neq("payment_method", "vr")
             .gte("spent_at", monthStart),
         ]);
 
@@ -301,4 +318,3 @@ export const createExpense = createServerFn({ method: "POST" })
 
     return { id: inserted.id, notifications };
   });
-
